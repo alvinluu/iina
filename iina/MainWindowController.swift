@@ -2720,16 +2720,12 @@ class MainWindowController: PlayerWindowController {
       arrowButtonAction(left: true)
     case .speed:
       let speeds = AppData.availableSpeedValues.count
-      // If fast forwarding change speed to 1x
-      if speedValueIndex > speeds / 2 {
-        speedValueIndex = speeds / 2
-      }
 
       if sender.intValue == 0 { // Released
         if maxPressure == 1 &&
           (speedValueIndex < speeds / 2 - 1 ||
-          Date().timeIntervalSince(lastClick) < minimumPressDuration) { // Single click ended, 2x speed
-          speedValueIndex = oldIndex - 1
+          Date().timeIntervalSince(lastClick) < minimumPressDuration) { // Single click ended, step down one speed
+          speedValueIndex = max(oldIndex - 1, 0)
         } else { // Force Touch or long press ended
           speedValueIndex = speeds / 2
         }
@@ -2737,7 +2733,7 @@ class MainWindowController: PlayerWindowController {
       } else {
         if sender.intValue == 1 && maxPressure == 0 { // First press
           oldIndex = speedValueIndex
-          speedValueIndex -= 1
+          speedValueIndex = max(speedValueIndex - 1, 0)
           lastClick = Date()
         } else { // Force Touch
           speedValueIndex = max(oldIndex - Int(sender.intValue), 0)
@@ -2763,16 +2759,12 @@ class MainWindowController: PlayerWindowController {
       arrowButtonAction(left: false)
     case .speed:
       let speeds = AppData.availableSpeedValues.count
-      // If rewinding change speed to 1x
-      if speedValueIndex < speeds / 2 {
-        speedValueIndex = speeds / 2
-      }
 
       if sender.intValue == 0 { // Released
         if maxPressure == 1 &&
           (speedValueIndex > speeds / 2 + 1 ||
-          Date().timeIntervalSince(lastClick) < minimumPressDuration) { // Single click ended
-          speedValueIndex = oldIndex + 1
+          Date().timeIntervalSince(lastClick) < minimumPressDuration) { // Single click ended, step up one speed
+          speedValueIndex = min(oldIndex + 1, speeds - 1)
         } else { // Force Touch or long press ended
           speedValueIndex = speeds / 2
         }
@@ -2780,7 +2772,7 @@ class MainWindowController: PlayerWindowController {
       } else {
         if sender.intValue == 1 && maxPressure == 0 { // First press
           oldIndex = speedValueIndex
-          speedValueIndex += 1
+          speedValueIndex = min(speedValueIndex + 1, speeds - 1)
           lastClick = Date()
         } else { // Force Touch
           speedValueIndex = min(oldIndex + Int(sender.intValue), speeds - 1)
