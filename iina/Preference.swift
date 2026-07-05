@@ -1023,7 +1023,7 @@ struct Preference {
     .recordPlaybackHistory: true,
     .recordRecentFiles: true,
     .trackAllFilesInRecentOpenMenu: true,
-    .controlBarPositionHorizontal: Float(0.5),
+    .controlBarPositionHorizontal: Float(0.62),
     .controlBarPositionVertical: Float(0.1),
     .controlBarStickToCenter: true,
     .controlBarAutoHideTimeout: Float(2.5),
