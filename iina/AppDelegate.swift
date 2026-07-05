@@ -49,6 +49,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   private var isTerminating = false
 
+  /// Retained so the sources aren't deallocated. Lets `kill`/`pkill` (which send SIGTERM by
+  /// default) trigger IINA's normal quit sequence — including mpv's save-position-on-quit —
+  /// instead of an instant, uncatchable-by-us process teardown.
+  private var terminationSignalSources: [DispatchSourceSignal] = []
+
   /// Longest time to wait for asynchronous shutdown tasks to finish before giving up on waiting and proceeding with termination.
   ///
   /// Ten seconds was chosen to provide plenty of time for termination and yet not be long enough that users start thinking they will
@@ -353,8 +358,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
   }
 
+  /// `kill`/`pkill` send SIGTERM by default, and its default disposition is to terminate the
+  /// process immediately with no chance for `applicationShouldTerminate`/`applicationWillTerminate`
+  /// to run — skipping mpv's save-position-on-quit and any other shutdown cleanup. Route it (and
+  /// SIGINT) through the normal Cocoa termination sequence instead.
+  private func setUpTerminationSignalHandling() {
+    for sig in [SIGTERM, SIGINT] {
+      signal(sig, SIG_IGN)
+      let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+      source.setEventHandler {
+        NSApp.terminate(nil)
+      }
+      source.resume()
+      terminationSignalSources.append(source)
+    }
+  }
+
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Logger.log("App launched")
+
+    setUpTerminationSignalHandling()
 
     if !isReady {
       getReady()
