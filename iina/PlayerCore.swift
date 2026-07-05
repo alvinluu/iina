@@ -2716,7 +2716,11 @@ class PlayerCore: NSObject {
     currentController.handleVideoSizeChange()
     if currentController.pendingShow {
       currentController.pendingShow = false
-      currentController.showWindow(self)
+      // Loading a new file into this window (e.g. switching videos) shouldn't undo PiP's
+      // minimize/hide of the main window — it's still supposed to stay out of the way.
+      if mainWindow.pipStatus != .inPIP {
+        currentController.showWindow(self)
+      }
       AppDelegate.shared.openURLWindow.close()
     }
     if info.state == .loaded {
