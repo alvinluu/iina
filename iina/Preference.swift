@@ -82,6 +82,7 @@ struct Preference {
 
     static let alwaysFloatOnTop = Key("alwaysFloatOnTop")
     static let alwaysShowOnTopIcon = Key("alwaysShowOnTopIcon")
+    static let rememberedStayOnTop = Key("rememberedStayOnTop")
 
     static let pauseWhenMinimized = Key("pauseWhenMinimized")
     static let pauseWhenInactive = Key("pauseWhenInactive")
@@ -145,6 +146,7 @@ struct Preference {
     static let initialWindowSizePosition = Key("initialWindowSizePosition")
     static let resizeWindowTiming = Key("resizeWindowTiming")
     static let resizeWindowOption = Key("resizeWindowOption")
+    static let rememberedWindowScale = Key("rememberedWindowScale")
 
     static let oscPosition = Key("oscPosition")
     static let disablePlaySliderScrolling = Key("disablePlaySliderScrolling")
@@ -792,6 +794,7 @@ struct Preference {
     case videoSize10
     case videoSize15
     case videoSize20
+    case rememberLast
 
     static var defaultValue = ResizeWindowOption.videoSize10
 
@@ -806,10 +809,13 @@ struct Preference {
       case .videoSize10: 1
       case .videoSize15: 1.5
       case .videoSize20: 2
+      case .rememberLast: Preference.double(for: .rememberedWindowScale)
       }
     }
 
-    var description: String { String(ratio) }
+    var description: String {
+      self == .rememberLast ? NSLocalizedString("resize_window_option.remember_last", comment: "Remember last size") : String(ratio)
+    }
   }
 
   enum WindowBehaviorWhenPip: Int, InitializingFromKey, CaseIterable {
@@ -1071,6 +1077,7 @@ struct Preference {
     .useAppleRemote: false,
     .alwaysFloatOnTop: false,
     .alwaysShowOnTopIcon: false,
+    .rememberedStayOnTop: false,
     .blackOutMonitor: false,
     .pauseWhenMinimized: false,
     .pauseWhenInactive: false,
@@ -1089,7 +1096,8 @@ struct Preference {
     .usePhysicalResolution: true,
     .initialWindowSizePosition: "",
     .resizeWindowTiming: ResizeWindowTiming.onlyWhenOpen.rawValue,
-    .resizeWindowOption: ResizeWindowOption.videoSize10.rawValue,
+    .resizeWindowOption: ResizeWindowOption.rememberLast.rawValue,
+    .rememberedWindowScale: 1.0,
     .showRemainingTime: false,
     .scaleRemainingTime: false,
     .timeDisplayPrecision: 0,

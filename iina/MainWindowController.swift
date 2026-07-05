@@ -95,6 +95,11 @@ class MainWindowController: PlayerWindowController {
   override var isOntop: Bool {
     didSet {
       titleBarView.updateOnTopIcon()
+      // Don't record state driven by the automatic "float on top while playing" feature — that's
+      // a separate, play/pause-tied behavior, not the user's sticky manual preference.
+      if !Preference.bool(for: .alwaysFloatOnTop) {
+        Preference.set(isOntop, for: .rememberedStayOnTop)
+      }
     }
   }
 
@@ -464,6 +469,12 @@ class MainWindowController: PlayerWindowController {
     window.minSize = AppData.mainWindowMinSize
     window.aspectRatio = AppData.sizeWhenNoVideo
     setWindowToolbar()
+
+    // Restore the remembered "stay on top" state, unless the "always float on top while playing"
+    // feature is controlling window level automatically instead.
+    if !Preference.bool(for: .alwaysFloatOnTop) && Preference.bool(for: .rememberedStayOnTop) {
+      setWindowFloatingOnTop(true)
+    }
     cv.autoresizesSubviews = false
     cv.addGestureRecognizer(magnificationGestureRecognizer)
 
@@ -2487,6 +2498,7 @@ class MainWindowController: PlayerWindowController {
       let windowScale = Double((frame ?? window.frame).width) / Double(videoWidth)
       player.info.cachedWindowScale = windowScale
       player.mpv.setDouble(MPVProperty.windowScale, windowScale, level: .verbose)
+      Preference.set(windowScale, for: .rememberedWindowScale)
     }
     // For a single discrete resize (as opposed to a live drag, which fires windowDidResize
     // continuously and self-corrects), windowDidResize may run before Auto Layout has fully
