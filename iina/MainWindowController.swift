@@ -923,7 +923,7 @@ class MainWindowController: PlayerWindowController {
       // (and triggering the detach) in macOS 11.
       if !isMacOS11 {
         oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: fragVolumeView)
-        oscFloatingView.oscTopView.setVisibilityPriority(.detachOnlyIfNecessary, for: fragToolbarView)
+        oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: fragToolbarView)
         oscFloatingView.oscTopView.setClippingResistancePriority(.defaultLow, for: .horizontal)
       }
       oscFloatingView.oscBottomView.addSubview(fragSliderView)
@@ -942,7 +942,7 @@ class MainWindowController: PlayerWindowController {
       oscTopMainView.setClippingResistancePriority(.defaultLow, for: .horizontal)
       oscTopMainView.setVisibilityPriority(.mustHold, for: fragSliderView)
       oscTopMainView.setVisibilityPriority(.mustHold, for: fragVolumeView)
-      oscTopMainView.setVisibilityPriority(.detachEarlier, for: fragToolbarView)
+      oscTopMainView.setVisibilityPriority(.mustHold, for: fragToolbarView)
     case .bottom:
       oscBottomView.isHidden = false
       let oscBottomMainView = oscBottomView.oscView!
@@ -956,7 +956,7 @@ class MainWindowController: PlayerWindowController {
       oscBottomMainView.setClippingResistancePriority(.defaultLow, for: .horizontal)
       oscBottomMainView.setVisibilityPriority(.mustHold, for: fragSliderView)
       oscBottomMainView.setVisibilityPriority(.mustHold, for: fragVolumeView)
-      oscBottomMainView.setVisibilityPriority(.detachEarlier, for: fragToolbarView)
+      oscBottomMainView.setVisibilityPriority(.mustHold, for: fragToolbarView)
     }
 
     fadeableViews.update()
