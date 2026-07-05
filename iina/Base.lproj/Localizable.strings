@@ -92,6 +92,7 @@
 "osd.resume" = "Resume";
 "osd.volume" = "Volume: %@";
 "osd.speed" = "Speed: %@x";
+"osd.window_scale" = "Window Size: %@%%";
 "osd.aspect" = "Aspect Ratio: %@";
 "osd.crop" = "Crop: %@";
 "osd.rotate" = "Rotate: %i°";

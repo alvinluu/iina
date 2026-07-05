@@ -1877,6 +1877,7 @@ class MainWindowController: PlayerWindowController {
     guard player.info.state.active else { return }
     videoView.videoLayer.inLiveResize = false
     updateWindowParametersForMPV()
+    player.sendOSD(.windowScale(player.info.cachedWindowScale))
     liveText.requestAnalysis()
   }
 
@@ -2538,6 +2539,9 @@ class MainWindowController: PlayerWindowController {
     }
     window.setFrame(newFrame, display: true, animate: true)
     updateWindowParametersForMPV(withFrame: newFrame)
+    // Read back the actual resulting scale, not the requested one — min/max size clamping above
+    // can make them differ (e.g. a 200% request that gets shrunk to fit the screen).
+    player.sendOSD(.windowScale(player.info.cachedWindowScale))
     MemoryUsage.shared.logUsage("after window scale changed (\(newFrame.width)x\(newFrame.height))")
   }
 

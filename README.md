@@ -26,6 +26,7 @@ Changes on top of stock IINA:
   - Added custom scale presets (70%/130%/170%) alongside the stock Half/Normal/Double Size, each with matching Video-menu entries and auto-detected keyboard shortcuts.
   - Resizing now anchors to whichever screen corner/edge the window is closest to (instead of always resizing around the center), so a window parked in a corner stays there while scaling.
   - Window scale is remembered across restarts (`resizeWindowOption` gets a new "Remember last size" mode) — new videos open at your last-used size instead of resetting to native resolution.
+  - Setting the window to an explicit scale (menu preset or keyboard shortcut) now shows a "Window Size: N%" OSD, like the existing volume/speed OSDs.
 - **On-screen controller**:
   - Volume control no longer auto-hides at small window widths/scales.
   - The floating transport bar is shifted right of center by default.

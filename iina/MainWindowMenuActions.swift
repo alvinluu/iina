@@ -46,7 +46,7 @@ extension MainWindowController {
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let newFrame: NSRect
     let sizeMap: [Int: Double] = [0: 0.5, 2: 2, 4: 0.7, 5: 1, 6: 1.3, 7: 1.7]
-    let scaleStep: CGFloat = 25
+    let scaleStep = 0.1
 
     switch size {
     // scale
@@ -58,17 +58,19 @@ extension MainWindowController {
     case 3:
       window.center()
       newFrame = window.frame.centeredResize(to: window.frame.size.shrink(toSize: screenFrame.size))
-    // bigger size
+    // bigger/smaller size: step by a fixed percentage of scale, not a fixed pixel amount, so the
+    // step is consistent regardless of the video's native resolution.
     case 10, 11:
-      let newWidth = window.frame.width + scaleStep * (size == 10 ? -1 : 1)
-      let newHeight = newWidth / (window.aspectRatio.width / window.aspectRatio.height)
-      newFrame = window.frame.anchoredResize(to: NSSize(width: newWidth, height: newHeight).satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize), screenFrame: screenFrame)
+      let newScale = player.info.cachedWindowScale + scaleStep * (size == 10 ? -1 : 1)
+      setWindowScale(newScale)
+      return
     default:
       return
     }
 
     window.setFrame(newFrame, display: true, animate: true)
     updateWindowParametersForMPV(withFrame: newFrame)
+    player.sendOSD(.windowScale(player.info.cachedWindowScale))
   }
 
   @objc func menuAlwaysOnTop(_ sender: AnyObject) {

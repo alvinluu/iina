@@ -72,6 +72,7 @@ enum OSDMessage {
   case seek(String, String, Double)  // current, total, percentage
   case volume(Double)
   case speed(Double)
+  case windowScale(Double)
   case aspect(String)
   case crop(String)
   case rotate(Int)
@@ -189,6 +190,12 @@ enum OSDMessage {
     case .speed(let value):
       return (
         String(format: NSLocalizedString("osd.speed", comment: "Speed: %@x"), value.groupedStringUpTo6Decimals),
+        .normal
+      )
+
+    case .windowScale(let value):
+      return (
+        String(format: NSLocalizedString("osd.window_scale", comment: "Window Size: %@%%"), String(format: "%.0f", value * 100)),
         .normal
       )
 
@@ -523,7 +530,7 @@ enum OSDMessage {
         part1: current, fontSize: fontSize, isSecondary: false,
         part2: " / " + total, fontSize: smallFontSize, isSecondary: true
       )
-    case .volume, .speed, .aspect, .crop, .rotate, .deinterlace,
+    case .volume, .speed, .windowScale, .aspect, .crop, .rotate, .deinterlace,
         .audioDelay, .subPos, .subDelay, .secondSubPos, .secondSubDelay,
         .brightness, .contrast, .saturation, .gamma, .hue,
         .track, .chapter,
