@@ -65,6 +65,7 @@ extension MainWindowController {
     }
 
     window.setFrame(newFrame, display: true, animate: true)
+    updateWindowParametersForMPV(withFrame: newFrame)
   }
 
   @objc func menuAlwaysOnTop(_ sender: AnyObject) {

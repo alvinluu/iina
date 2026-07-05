@@ -808,6 +808,7 @@ class MainWindowController: PlayerWindowController {
     let newFrame = window.frame.centeredResize(to: newWindowSize)
 
     window.setFrame(newFrame, display: true, animate: true)
+    updateWindowParametersForMPV(withFrame: newFrame)
   }
 
   private func setupOSCToolbarButtons(_ buttons: [Preference.ToolBarButton]) {
@@ -2502,6 +2503,7 @@ class MainWindowController: PlayerWindowController {
       newFrame = window.frame.centeredResize(to: finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)).constrain(in: screenFrame)
     }
     window.setFrame(newFrame, display: true, animate: true)
+    updateWindowParametersForMPV(withFrame: newFrame)
     MemoryUsage.shared.logUsage("after window scale changed (\(newFrame.width)x\(newFrame.height))")
   }
 
