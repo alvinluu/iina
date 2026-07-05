@@ -13,6 +13,8 @@
 "general.logout" = "Logout";
 "general.ok" = "OK";
 "general.cancel" = "Cancel";
+"general.yes" = "Yes";
+"general.no" = "No";
 "general.done" = "Done";
 "general.username" = "Username";
 "general.password" = "Password";
@@ -328,6 +330,8 @@
 "alert.delete_all_history.message" = "Are you sure to delete all playback history?";
 "alert.delete_file.title" = "Delete File";
 "alert.delete_file.message" = "Are you sure to trash the selected files?";
+"alert.delete_and_next.title" = "Delete Current File";
+"alert.delete_and_next.message" = "Move the current file to the Trash before playing the next item? Choose \"No\" to keep the file and just play the next item.";
 
 "alert.filter_hwdec.message" = "You are about to apply a video filter. However, your current hardware decoder may not support video filters well. You can either disable hardware decoding or switch to Auto(Copy), which will consume twice the memory.\nYou may need to repeat previous operation (like setting the crop) to make it work.";
 "alert.filter_hwdec.abort" = "Abort";
@@ -434,6 +438,8 @@
 "osc_toolbar.screenshot" = "Take a screenshot";
 "osc_toolbar.plugins" = "Show plugins panel";
 "osc_toolbar.live_text" = "Toggle Live Text";
+"osc_toolbar.trash_after_finish" = "Toggle: move file to Trash after it finishes playing";
+"osc_toolbar.delete_and_next" = "Delete current file and play next";
 
 "osc_pos.floating" = "Floating";
 "osc_pos.top" = "Top";

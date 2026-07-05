@@ -52,14 +52,7 @@ class MainMenuActionHandler: NSResponder, NSMenuItemValidation {
   }
 
   @objc func menuDeleteCurrentFile(_ sender: NSMenuItem) {
-    guard let url = player.info.currentURL, !player.info.isNetworkResource else { return }
-    do {
-      let index = player.mpv.getInt(MPVProperty.playlistPos)
-      player.playlistRemove(index)
-      try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-    } catch let error {
-      Utility.showAlert("playlist.error_deleting", arguments: [error.localizedDescription])
-    }
+    player.trashCurrentFile()
   }
 
   // currently only being used for key command

@@ -1534,6 +1534,29 @@ class PlayerCore: NSObject {
     postNotification(.iinaPlaylistChanged)
   }
 
+  /// Moves the current file to the Trash, if it's a local file. Shared by the "Delete Current
+  /// File" menu command and the "trash after playback finishes" / "delete and play next" OSC
+  /// toolbar buttons.
+  @discardableResult
+  func trashCurrentFile() -> Bool {
+    guard let url = info.currentURL, !info.isNetworkResource else { return false }
+    do {
+      let index = mpv.getInt(MPVProperty.playlistPos)
+      playlistRemove(index)
+      try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+      return true
+    } catch let error {
+      Utility.showAlert("playlist.error_deleting", arguments: [error.localizedDescription])
+      return false
+    }
+  }
+
+  /// Called when mpv reports a file reached its natural end-of-file (not a user-initiated stop).
+  func trashCurrentFileIfEnabledAfterPlayback() {
+    guard Preference.bool(for: .trashAfterPlaybackFinished) else { return }
+    trashCurrentFile()
+  }
+
   func playlistRemove(_ indexSet: IndexSet) {
     guard !indexSet.isEmpty else { return }
     var count = 0

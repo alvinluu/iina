@@ -105,6 +105,8 @@ struct Preference {
 
     static let enableLiveText = Key("enableLiveText")
 
+    static let trashAfterPlaybackFinished = Key("trashAfterPlaybackFinished")
+
     static let playlistAutoAdd = Key("playlistAutoAdd")
     static let playlistAutoPlayNext = Key("playlistAutoPlayNext")
     static let playlistShowMetadata = Key("playlistShowMetadata")
@@ -840,6 +842,8 @@ struct Preference {
     case screenshot
     case plugins
     case liveText
+    case trashAfterFinish
+    case deleteAndNext
 
     var description: String {
       switch self {
@@ -852,6 +856,8 @@ struct Preference {
       case .screenshot: "screenshot"
       case .plugins: "plugins"
       case .liveText: "liveText"
+      case .trashAfterFinish: "trashAfterFinish"
+      case .deleteAndNext: "deleteAndNext"
       }
     }
 
@@ -871,6 +877,8 @@ struct Preference {
       case .screenshot: return makeSymbol(["camera.shutter.button", "camera.fill"])
       case .plugins: return makeSymbol(["puzzlepiece.extension", "puzzlepiece"])
       case .liveText: return makeSymbol(["document.viewfinder", "doc.viewfinder", "doc.text.viewfinder"])
+      case .trashAfterFinish: return makeSymbol(["trash", "trash.fill"])
+      case .deleteAndNext: return makeSymbol(["forward.end.alt", "forward.end"])
       }
     }
 
@@ -882,6 +890,7 @@ struct Preference {
       case .fullScreen: return makeSymbol(["arrow.down.forward.and.arrow.up.backward.rectangle", "arrow.down.right.and.arrow.up.left"])
       case .plugins: return makeSymbol(["puzzlepiece.extension.fill", "puzzlepiece.fill"])
       case .liveText: return makeSymbol(["viewfinder.circle.fill"])
+      case .trashAfterFinish: return makeSymbol(["trash.circle.fill", "trash.fill"])
       default: return nil
       }
     }
@@ -898,6 +907,8 @@ struct Preference {
       case .screenshot: key = "screenshot"
       case .plugins: key = "plugins"
       case .liveText: key = "live_text"
+      case .trashAfterFinish: key = "trash_after_finish"
+      case .deleteAndNext: key = "delete_and_next"
       }
       return NSLocalizedString("osc_toolbar.\(key)", comment: key)
     }
@@ -1028,7 +1039,8 @@ struct Preference {
     .controlBarStickToCenter: true,
     .controlBarAutoHideTimeout: Float(2.5),
     .enableControlBarAutoHide: true,
-    .controlBarToolbarButtons: [ToolBarButton.plugins.rawValue, ToolBarButton.pip.rawValue, ToolBarButton.playlist.rawValue, ToolBarButton.settings.rawValue],
+    .controlBarToolbarButtons: [ToolBarButton.plugins.rawValue, ToolBarButton.pip.rawValue, ToolBarButton.playlist.rawValue, ToolBarButton.settings.rawValue,
+                                 ToolBarButton.trashAfterFinish.rawValue, ToolBarButton.deleteAndNext.rawValue],
     .oscPosition: OSCPosition.floating.rawValue,
     .disablePlaySliderScrolling: false,
     .disableVolumeSliderScrolling: false,
@@ -1215,6 +1227,8 @@ struct Preference {
     .screenshotShowPreview: true,
 
     .enableLiveText: false,
+
+    .trashAfterPlaybackFinished: false,
 
     .watchProperties: [String](),
     .savedVideoFilters: [SavedFilter](),

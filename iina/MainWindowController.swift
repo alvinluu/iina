@@ -276,7 +276,8 @@ class MainWindowController: PlayerWindowController {
     .useLiquidGlassOSC,
     .useLiquidGlassOSD,
     .useLiquidGlassSidebar,
-    .enableLiveText
+    .enableLiveText,
+    .trashAfterPlaybackFinished
   ]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
@@ -358,6 +359,13 @@ class MainWindowController: PlayerWindowController {
           liveText.requestAnalysis()
         } else {
           liveText.clearAnalysis()
+        }
+      }
+    case PK.trashAfterPlaybackFinished.rawValue:
+      if let newValue = change[.newKey] as? Bool {
+        let buttons = fragToolbarView.subviews as! [NSButton]
+        if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.trashAfterFinish.rawValue }) {
+          btn.image = newValue ? Preference.ToolBarButton.trashAfterFinish.alternateImage() : Preference.ToolBarButton.trashAfterFinish.image()
         }
       }
     default:
@@ -815,11 +823,15 @@ class MainWindowController: PlayerWindowController {
     let effectiveButtons = buttons.filter { $0 != .liveText || Preference.isLiveTextEnabled }
     fragToolbarView.views.forEach { fragToolbarView.removeView($0) }
     let liveTextEnabled = Preference.bool(for: .enableLiveText)
+    let trashAfterFinishEnabled = Preference.bool(for: .trashAfterPlaybackFinished)
     for buttonType in effectiveButtons {
       let button = NSButton()
       OSCToolbarButton.setStyle(of: button, buttonType: buttonType, reducedWidth: effectiveButtons.count > 4)
       if buttonType == .liveText && liveTextEnabled {
         button.image = Preference.ToolBarButton.liveText.alternateImage()
+      }
+      if buttonType == .trashAfterFinish && trashAfterFinishEnabled {
+        button.image = Preference.ToolBarButton.trashAfterFinish.alternateImage()
       }
       button.action = #selector(self.toolBarButtonAction(_:))
       fragToolbarView.addView(button, in: .trailing)
@@ -2860,6 +2872,30 @@ class MainWindowController: PlayerWindowController {
       sidebars.show(sidebar: .plugins)
     case .liveText:
       Preference.set(!Preference.bool(for: .enableLiveText), for: .enableLiveText)
+    case .trashAfterFinish:
+      Preference.set(!Preference.bool(for: .trashAfterPlaybackFinished), for: .trashAfterPlaybackFinished)
+    case .deleteAndNext:
+      guard let window else { return }
+      let alert = NSAlert()
+      alert.messageText = NSLocalizedString("alert.delete_and_next.title", comment: "Delete Current File")
+      alert.informativeText = NSLocalizedString("alert.delete_and_next.message", comment: "")
+      alert.addButton(withTitle: NSLocalizedString("general.yes", comment: "Yes"))
+      alert.addButton(withTitle: NSLocalizedString("general.no", comment: "No"))
+      alert.addButton(withTitle: NSLocalizedString("general.cancel", comment: "Cancel"))
+      alert.beginSheetModal(for: window) { [weak self] response in
+        switch response {
+        case .alertFirstButtonReturn:
+          // Yes: mpv's playlist-remove auto-advances to the next item when the removed entry is
+          // the one currently playing, so trashCurrentFile() alone accomplishes "delete and next."
+          self?.player.trashCurrentFile()
+        case .alertSecondButtonReturn:
+          // No: keep the file, but still move on to the next item.
+          self?.player.navigateInPlaylist(nextMedia: true)
+        default:
+          // Cancel: do nothing.
+          break
+        }
+      }
     }
   }
 
