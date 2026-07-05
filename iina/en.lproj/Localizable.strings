@@ -96,6 +96,9 @@
 "osd.speed" = "Speed: %@x";
 "osd.aspect" = "Aspect Ratio: %@";
 "osd.crop" = "Crop: %@";
+"osd.moved_to_trash" = "Moved to Trash: %@";
+
+"resize_window_option.remember_last" = "Remember last size";
 "osd.rotate" = "Rotate: %i°";
 "osd.deinterlace" = "Deinterlace: %@";
 "osd.hwdec" = "Hardware Decoding: %@";

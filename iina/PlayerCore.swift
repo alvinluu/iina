@@ -1544,6 +1544,7 @@ class PlayerCore: NSObject {
       let index = mpv.getInt(MPVProperty.playlistPos)
       playlistRemove(index)
       try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+      sendOSD(.custom(String(format: NSLocalizedString("osd.moved_to_trash", comment: ""), url.lastPathComponent)))
       return true
     } catch let error {
       Utility.showAlert("playlist.error_deleting", arguments: [error.localizedDescription])
