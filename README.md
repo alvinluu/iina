@@ -13,6 +13,34 @@
 </p>
 
 ---
+
+## About this fork: Nina
+
+This is a personal fork of IINA, rebranded as **Nina**, built for daily use alongside a stock IINA install (separate app name, icon, and bundle identifier — `com.colliderli.nina` — so both can run side by side without sharing preferences). Customizations live on the [`nina`](https://github.com/alvinluu/iina/tree/nina) branch; `develop` is kept as an untouched mirror of upstream so new IINA releases can still be merged in.
+
+Changes on top of stock IINA:
+
+- **Branding**: new name, app icon, and bundle identifier throughout (menu bar, Info.plist, embedded share extension).
+- **Window scaling**:
+  - Fixed a bug where `set window-scale N` hotkeys would silently no-op if a prior native resize (Fit to Screen, Bigger/Smaller, menu presets) had left mpv's internal scale property stale.
+  - Added custom scale presets (70%/110%→Normal/140%/170%) alongside the stock Half/Normal/Double Size, each with matching Video-menu entries and auto-detected keyboard shortcuts.
+  - Resizing now anchors to whichever screen corner/edge the window is closest to (instead of always resizing around the center), so a window parked in a corner stays there while scaling.
+  - Window scale is remembered across restarts (`resizeWindowOption` gets a new "Remember last size" mode) — new videos open at your last-used size instead of resetting to native resolution.
+- **On-screen controller**:
+  - Volume control no longer auto-hides at small window widths/scales.
+  - The floating transport bar is shifted right of center by default.
+  - The speed-adjustment buttons step one increment at a time in both directions, instead of jumping straight to 0.5x/2x when reversing direction.
+  - Two new toolbar buttons, managed the same way as the built-in PiP button:
+    - **Trash after finish** — a persistent toggle that moves the current file to the Trash whenever it reaches natural end-of-file (never on skip/stop/close).
+    - **Delete and next** — prompts Yes/No/Cancel to trash the current file and advance, keep it and advance, or do nothing.
+  - Any file moved to the Trash (via the above, or the existing "Delete Current File" menu command) now shows an OSD confirmation with the filename.
+  - "Stay on top" is remembered across restarts.
+- **Picture-in-Picture**: fixed the main window popping back up when switching to another video while PiP was active.
+- **Shutdown**: `kill`/`pkill` (SIGTERM/SIGINT) now trigger IINA's normal graceful quit sequence instead of an instant process kill, so mpv's save-position-on-quit and other shutdown cleanup actually get a chance to run.
+
+Building this fork follows the same steps as upstream IINA below; the resulting app is named `Nina.app`.
+
+---
 [![Crowdin](https://badges.crowdin.net/iina/localized.svg)](https://crowdin.com/project/iina)
 ## Features
 
