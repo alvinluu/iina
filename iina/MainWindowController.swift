@@ -470,11 +470,6 @@ class MainWindowController: PlayerWindowController {
     window.aspectRatio = AppData.sizeWhenNoVideo
     setWindowToolbar()
 
-    // Restore the remembered "stay on top" state, unless the "always float on top while playing"
-    // feature is controlling window level automatically instead.
-    if !Preference.bool(for: .alwaysFloatOnTop) && Preference.bool(for: .rememberedStayOnTop) {
-      setWindowFloatingOnTop(true)
-    }
     cv.autoresizesSubviews = false
     cv.addGestureRecognizer(magnificationGestureRecognizer)
 
@@ -510,6 +505,13 @@ class MainWindowController: PlayerWindowController {
     cv.addSubview(bufferIndicatorView)
     titleBarView = Titlebar(mainWindow: self)
     cv.addSubview(titleBarView)
+
+    // Restore the remembered "stay on top" state, unless the "always float on top while playing"
+    // feature is controlling window level automatically instead. Must come after titleBarView is
+    // created, since isOntop's didSet touches it.
+    if !Preference.bool(for: .alwaysFloatOnTop) && Preference.bool(for: .rememberedStayOnTop) {
+      setWindowFloatingOnTop(true)
+    }
     sidebars.installSubviews(in: cv)
 
     // thumbnail peek view
