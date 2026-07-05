@@ -362,11 +362,23 @@ CA
                             <menuItem title="Half Size" id="snW-S8-Cw5">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
+                            <menuItem title="70% Size" id="Nn7-Sc-070">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                            </menuItem>
                             <menuItem title="Normal Size" id="1UK-8n-QPP">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
                             <menuItem title="Normal Size (Retina)" hidden="YES" alternate="YES" keyEquivalent="1" id="c1x-bx-69F">
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                            </menuItem>
+                            <menuItem title="110% Size" id="Nn1-Sc-110">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                            </menuItem>
+                            <menuItem title="140% Size" id="Nn1-Sc-140">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                            </menuItem>
+                            <menuItem title="170% Size" id="Nn1-Sc-170">
+                                <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
                             <menuItem title="Double Size" id="Hal-18-Tnf">
                                 <modifierMask key="keyEquivalentModifierMask"/>
@@ -805,6 +817,10 @@ CA
                 <outlet property="savePlaylist" destination="Mjr-lL-oEt" id="ftc-bn-4Qi"/>
                 <outlet property="savedAudioFiltersMenu" destination="vuV-uP-CAD" id="7DB-am-PUD"/>
                 <outlet property="savedVideoFiltersMenu" destination="xhY-fF-oio" id="MDx-8r-ENg"/>
+                <outlet property="scale70" destination="Nn7-Sc-070" id="Nn7-Sc-o70"/>
+                <outlet property="scale110" destination="Nn1-Sc-110" id="Nn1-Sc-o11"/>
+                <outlet property="scale140" destination="Nn1-Sc-140" id="Nn1-Sc-o14"/>
+                <outlet property="scale170" destination="Nn1-Sc-170" id="Nn1-Sc-o17"/>
                 <outlet property="screenshot" destination="AoP-K6-Kb5" id="dhl-4W-7yS"/>
                 <outlet property="secondSubTrackMenu" destination="UwY-P2-Xdb" id="D3B-WW-bAk"/>
                 <outlet property="showCurrentFileInFinder" destination="che-dy-QUU" id="p1H-Xj-dbg"/>

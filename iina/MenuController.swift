@@ -130,8 +130,12 @@ class MenuController: NSObject, NSMenuDelegate {
   @IBOutlet weak var videoTrack: NSMenuItem!
   @IBOutlet weak var videoTrackMenu: NSMenu!
   @IBOutlet weak var halfSize: NSMenuItem!
+  @IBOutlet weak var scale70: NSMenuItem!
   @IBOutlet weak var normalSize: NSMenuItem!
   @IBOutlet weak var normalSizeRetina: NSMenuItem!
+  @IBOutlet weak var scale110: NSMenuItem!
+  @IBOutlet weak var scale140: NSMenuItem!
+  @IBOutlet weak var scale170: NSMenuItem!
   @IBOutlet weak var doubleSize: NSMenuItem!
   @IBOutlet weak var biggerSize: NSMenuItem!
   @IBOutlet weak var smallerSize: NSMenuItem!
@@ -285,7 +289,9 @@ class MenuController: NSObject, NSMenuDelegate {
 
     // -- window size
     (halfSize.tag, normalSize.tag, normalSizeRetina.tag, doubleSize.tag, fitToScreen.tag, biggerSize.tag, smallerSize.tag) = (0, 1, -1, 2, 3, 11, 10)
-    for item in [halfSize, normalSize, normalSizeRetina, doubleSize, fitToScreen, biggerSize, smallerSize] {
+    (scale70.tag, scale110.tag, scale140.tag, scale170.tag) = (4, 5, 6, 7)
+    for item in [halfSize, normalSize, normalSizeRetina, doubleSize, fitToScreen, biggerSize, smallerSize,
+                 scale70, scale110, scale140, scale170] {
       item?.action = #selector(MainWindowController.menuChangeWindowSize(_:))
     }
 
@@ -911,7 +917,11 @@ class MenuController: NSObject, NSMenuDelegate {
       (fileLoop, false, ["cycle-values", "loop", "\"inf\"", "\"no\""], false, nil, nil),
       (screenshot, false, ["screenshot"], false, nil, nil),
       (halfSize, false, ["set", "window-scale", "0.5"], true, nil, nil),
+      (scale70, false, ["set", "window-scale", "0.7"], true, nil, nil),
       (normalSize, false, ["set", "window-scale", "1"], true, nil, nil),
+      (scale110, false, ["set", "window-scale", "1.1"], true, nil, nil),
+      (scale140, false, ["set", "window-scale", "1.4"], true, nil, nil),
+      (scale170, false, ["set", "window-scale", "1.7"], true, nil, nil),
       (doubleSize, false, ["set", "window-scale", "2"], true, nil, nil),
       (fullScreen, false, ["cycle", "fullscreen"], false, nil, nil),
       (alwaysOnTop, false, ["cycle", "ontop"], false, nil, nil),
