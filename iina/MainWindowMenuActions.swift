@@ -31,13 +31,11 @@ extension MainWindowController {
   }
 
   @objc func menuChangeWindowSize(_ sender: NSMenuItem) {
-    // -1: normal(non-retina), same as 1 when on non-retina screen
     //  0: half
-    //  1: normal
     //  2: double
     //  3: fit screen
     //  4: 70%
-    //  5: 110%
+    //  5: normal
     //  6: 140%
     //  7: 170%
     //  10: smaller size
@@ -47,12 +45,12 @@ extension MainWindowController {
 
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let newFrame: NSRect
-    let sizeMap: [Int: Double] = [0: 0.5, 1: 1, 2: 2, 4: 0.7, 5: 1.1, 6: 1.4, 7: 1.7]
+    let sizeMap: [Int: Double] = [0: 0.5, 2: 2, 4: 0.7, 5: 1, 6: 1.4, 7: 1.7]
     let scaleStep: CGFloat = 25
 
     switch size {
     // scale
-    case 0, 1, 2, 4, 5, 6, 7:
+    case 0, 2, 4, 5, 6, 7:
       guard let scale = sizeMap[size] else { return }
       setWindowScale(scale)
       return

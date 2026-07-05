@@ -365,13 +365,7 @@ CA
                             <menuItem title="70% Size" id="Nn7-Sc-070">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
-                            <menuItem title="Normal Size" id="1UK-8n-QPP">
-                                <modifierMask key="keyEquivalentModifierMask"/>
-                            </menuItem>
-                            <menuItem title="Normal Size (Retina)" hidden="YES" alternate="YES" keyEquivalent="1" id="c1x-bx-69F">
-                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
-                            </menuItem>
-                            <menuItem title="110% Size" id="Nn1-Sc-110">
+                            <menuItem title="Normal Size" id="Nn1-Sc-110">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
                             <menuItem title="140% Size" id="Nn1-Sc-140">
@@ -786,8 +780,7 @@ CA
                 <outlet property="nextChapter" destination="F6G-Ln-fqI" id="V3h-sp-dJv"/>
                 <outlet property="nextFrame" destination="XDC-Pc-rS1" id="PGo-Nr-JQg"/>
                 <outlet property="nextMedia" destination="GR6-4V-lRT" id="6sO-cD-UeT"/>
-                <outlet property="normalSize" destination="1UK-8n-QPP" id="rpd-7S-IYd"/>
-                <outlet property="normalSizeRetina" destination="c1x-bx-69F" id="S22-F3-Ks9"/>
+                <outlet property="normalSize" destination="Nn1-Sc-110" id="Nn1-Sc-o11"/>
                 <outlet property="onlineSubSourceMenu" destination="i0H-bE-bH8" id="u9W-1Y-Jhk"/>
                 <outlet property="open" destination="IAo-SY-fd9" id="fW9-2A-V4F"/>
                 <outlet property="openAlternative" destination="z9W-ga-j3b" id="RRI-7o-x9o"/>
@@ -818,7 +811,6 @@ CA
                 <outlet property="savedAudioFiltersMenu" destination="vuV-uP-CAD" id="7DB-am-PUD"/>
                 <outlet property="savedVideoFiltersMenu" destination="xhY-fF-oio" id="MDx-8r-ENg"/>
                 <outlet property="scale70" destination="Nn7-Sc-070" id="Nn7-Sc-o70"/>
-                <outlet property="scale110" destination="Nn1-Sc-110" id="Nn1-Sc-o11"/>
                 <outlet property="scale140" destination="Nn1-Sc-140" id="Nn1-Sc-o14"/>
                 <outlet property="scale170" destination="Nn1-Sc-170" id="Nn1-Sc-o17"/>
                 <outlet property="screenshot" destination="AoP-K6-Kb5" id="dhl-4W-7yS"/>

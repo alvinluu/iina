@@ -132,8 +132,6 @@ class MenuController: NSObject, NSMenuDelegate {
   @IBOutlet weak var halfSize: NSMenuItem!
   @IBOutlet weak var scale70: NSMenuItem!
   @IBOutlet weak var normalSize: NSMenuItem!
-  @IBOutlet weak var normalSizeRetina: NSMenuItem!
-  @IBOutlet weak var scale110: NSMenuItem!
   @IBOutlet weak var scale140: NSMenuItem!
   @IBOutlet weak var scale170: NSMenuItem!
   @IBOutlet weak var doubleSize: NSMenuItem!
@@ -288,10 +286,10 @@ class MenuController: NSObject, NSMenuDelegate {
     videoTrackMenu.delegate = self
 
     // -- window size
-    (halfSize.tag, normalSize.tag, normalSizeRetina.tag, doubleSize.tag, fitToScreen.tag, biggerSize.tag, smallerSize.tag) = (0, 1, -1, 2, 3, 11, 10)
-    (scale70.tag, scale110.tag, scale140.tag, scale170.tag) = (4, 5, 6, 7)
-    for item in [halfSize, normalSize, normalSizeRetina, doubleSize, fitToScreen, biggerSize, smallerSize,
-                 scale70, scale110, scale140, scale170] {
+    (halfSize.tag, doubleSize.tag, fitToScreen.tag, biggerSize.tag, smallerSize.tag) = (0, 2, 3, 11, 10)
+    (scale70.tag, normalSize.tag, scale140.tag, scale170.tag) = (4, 5, 6, 7)
+    for item in [halfSize, doubleSize, fitToScreen, biggerSize, smallerSize,
+                 scale70, normalSize, scale140, scale170] {
       item?.action = #selector(MainWindowController.menuChangeWindowSize(_:))
     }
 
@@ -919,7 +917,6 @@ class MenuController: NSObject, NSMenuDelegate {
       (halfSize, false, ["set", "window-scale", "0.5"], true, nil, nil),
       (scale70, false, ["set", "window-scale", "0.7"], true, nil, nil),
       (normalSize, false, ["set", "window-scale", "1"], true, nil, nil),
-      (scale110, false, ["set", "window-scale", "1.1"], true, nil, nil),
       (scale140, false, ["set", "window-scale", "1.4"], true, nil, nil),
       (scale170, false, ["set", "window-scale", "1.7"], true, nil, nil),
       (doubleSize, false, ["set", "window-scale", "2"], true, nil, nil),
