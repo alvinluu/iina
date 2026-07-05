@@ -36,6 +36,10 @@ extension MainWindowController {
     //  1: normal
     //  2: double
     //  3: fit screen
+    //  4: 70%
+    //  5: 110%
+    //  6: 140%
+    //  7: 170%
     //  10: smaller size
     //  11: bigger size
     let size = sender.tag
@@ -43,13 +47,14 @@ extension MainWindowController {
 
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let newFrame: NSRect
-    let sizeMap: [Double] = [0.5, 1, 2]
+    let sizeMap: [Int: Double] = [0: 0.5, 1: 1, 2: 2, 4: 0.7, 5: 1.1, 6: 1.4, 7: 1.7]
     let scaleStep: CGFloat = 25
 
     switch size {
     // scale
-    case 0, 1, 2:
-      setWindowScale(sizeMap[size])
+    case 0, 1, 2, 4, 5, 6, 7:
+      guard let scale = sizeMap[size] else { return }
+      setWindowScale(scale)
       return
     // fit screen
     case 3:
@@ -59,7 +64,7 @@ extension MainWindowController {
     case 10, 11:
       let newWidth = window.frame.width + scaleStep * (size == 10 ? -1 : 1)
       let newHeight = newWidth / (window.aspectRatio.width / window.aspectRatio.height)
-      newFrame = window.frame.centeredResize(to: NSSize(width: newWidth, height: newHeight).satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize))
+      newFrame = window.frame.anchoredResize(to: NSSize(width: newWidth, height: newHeight).satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize), screenFrame: screenFrame)
     default:
       return
     }

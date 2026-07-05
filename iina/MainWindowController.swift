@@ -2505,10 +2505,10 @@ class MainWindowController: PlayerWindowController {
     // set size
     if finalSize.width > screenFrame.size.width || finalSize.height > screenFrame.size.height {
       // if final size is bigger than screen
-      newFrame = window.frame.centeredResize(to: window.frame.size.shrink(toSize: screenFrame.size)).constrain(in: screenFrame)
+      newFrame = window.frame.anchoredResize(to: window.frame.size.shrink(toSize: screenFrame.size), screenFrame: screenFrame).constrain(in: screenFrame)
     } else {
       // otherwise, resize the window normally
-      newFrame = window.frame.centeredResize(to: finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)).constrain(in: screenFrame)
+      newFrame = window.frame.anchoredResize(to: finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize), screenFrame: screenFrame).constrain(in: screenFrame)
     }
     window.setFrame(newFrame, display: true, animate: true)
     updateWindowParametersForMPV(withFrame: newFrame)

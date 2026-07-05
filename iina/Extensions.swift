@@ -230,6 +230,21 @@ extension NSRect {
                   height: newSize.height)
   }
 
+  /// Resizes toward whichever screen edge(s) the rect is currently closest to, instead of
+  /// keeping the center fixed. E.g. a window near the top-left of `screenFrame` will keep its
+  /// top-left corner in place while its bottom-right corner moves as it grows/shrinks.
+  func anchoredResize(to newSize: NSSize, screenFrame: NSRect) -> NSRect {
+    let distToLeft = minX - screenFrame.minX
+    let distToRight = screenFrame.maxX - maxX
+    let newX = distToLeft <= distToRight ? minX : maxX - newSize.width
+
+    let distToBottom = minY - screenFrame.minY
+    let distToTop = screenFrame.maxY - maxY
+    let newY = distToBottom <= distToTop ? minY : maxY - newSize.height
+
+    return NSRect(x: newX, y: newY, width: newSize.width, height: newSize.height)
+  }
+
   // This function preserves the size of the new rect with the old rect
   func areaPreservingResized(newWidth width: CGFloat, height: CGFloat) -> NSRect {
     let targetAspectRatio = width / height
