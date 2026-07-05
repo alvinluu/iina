@@ -2570,7 +2570,11 @@ class PlayerCore: NSObject {
   func windowScaleChanged() {
     guard mainWindow.loaded, info.state.active else { return }
     let windowScale = mpv.getDouble(MPVOption.Window.windowScale)
-    if fabs(windowScale - info.cachedWindowScale) > 10e-10 {
+    // mpv recomputes window-scale from the actual (pixel-rounded) window size, which can
+    // legitimately differ from what we last cached by a tiny amount even when nothing
+    // meaningfully changed. 10e-10 was tight enough to misfire on that noise; this tolerance
+    // is still far below the smallest real scale step (e.g. 0.3 between the 1.4x/1.7x presets).
+    if fabs(windowScale - info.cachedWindowScale) > 0.005 {
       mainWindow.setWindowScale(windowScale)
     }
   }

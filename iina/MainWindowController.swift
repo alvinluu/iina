@@ -2476,6 +2476,14 @@ class MainWindowController: PlayerWindowController {
       player.info.cachedWindowScale = windowScale
       player.mpv.setDouble(MPVProperty.windowScale, windowScale, level: .verbose)
     }
+    // For a single discrete resize (as opposed to a live drag, which fires windowDidResize
+    // continuously and self-corrects), windowDidResize may run before Auto Layout has fully
+    // resolved videoViewContainer's new frame, leaving the floating OSC positioned from a stale
+    // width with nothing left to correct it afterward. Force layout, then reposition explicitly.
+    window.contentView?.layoutSubtreeIfNeeded()
+    if oscPosition == .floating {
+      oscFloatingView.updatePosition()
+    }
   }
 
   func setWindowScale(_ scale: Double) {
