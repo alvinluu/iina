@@ -23,7 +23,7 @@ Changes on top of stock IINA:
 - **Branding**: new name, app icon, and bundle identifier throughout (menu bar, Info.plist, embedded share extension).
 - **Window scaling**:
   - Fixed a bug where `set window-scale N` hotkeys would silently no-op if a prior native resize (Fit to Screen, Bigger/Smaller, menu presets) had left mpv's internal scale property stale.
-  - Added custom scale presets (70%/140%/170%) alongside the stock Half/Normal/Double Size, each with matching Video-menu entries and auto-detected keyboard shortcuts.
+  - Added custom scale presets (70%/130%/170%) alongside the stock Half/Normal/Double Size, each with matching Video-menu entries and auto-detected keyboard shortcuts.
   - Resizing now anchors to whichever screen corner/edge the window is closest to (instead of always resizing around the center), so a window parked in a corner stays there while scaling.
   - Window scale is remembered across restarts (`resizeWindowOption` gets a new "Remember last size" mode) — new videos open at your last-used size instead of resetting to native resolution.
 - **On-screen controller**:

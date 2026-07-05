@@ -36,7 +36,7 @@ extension MainWindowController {
     //  3: fit screen
     //  4: 70%
     //  5: normal
-    //  6: 140%
+    //  6: 130%
     //  7: 170%
     //  10: smaller size
     //  11: bigger size
@@ -45,7 +45,7 @@ extension MainWindowController {
 
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let newFrame: NSRect
-    let sizeMap: [Int: Double] = [0: 0.5, 2: 2, 4: 0.7, 5: 1, 6: 1.4, 7: 1.7]
+    let sizeMap: [Int: Double] = [0: 0.5, 2: 2, 4: 0.7, 5: 1, 6: 1.3, 7: 1.7]
     let scaleStep: CGFloat = 25
 
     switch size {

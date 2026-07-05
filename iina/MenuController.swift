@@ -917,7 +917,7 @@ class MenuController: NSObject, NSMenuDelegate {
       (halfSize, false, ["set", "window-scale", "0.5"], true, nil, nil),
       (scale70, false, ["set", "window-scale", "0.7"], true, nil, nil),
       (normalSize, false, ["set", "window-scale", "1"], true, nil, nil),
-      (scale140, false, ["set", "window-scale", "1.4"], true, nil, nil),
+      (scale140, false, ["set", "window-scale", "1.3"], true, nil, nil),
       (scale170, false, ["set", "window-scale", "1.7"], true, nil, nil),
       (doubleSize, false, ["set", "window-scale", "2"], true, nil, nil),
       (fullScreen, false, ["cycle", "fullscreen"], false, nil, nil),
