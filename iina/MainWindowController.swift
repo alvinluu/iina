@@ -2515,8 +2515,10 @@ class MainWindowController: PlayerWindowController {
 
   func setWindowScale(_ scale: Double) {
     guard loaded, let window, fsState == .windowed else { return }
+    log("setWindowScale(\(scale)) called. window.frame before=\(window.frame)", level: .debug)
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let (videoWidth, videoHeight) = player.videoSizeForDisplay
+    log("setWindowScale: videoSizeForDisplay=(\(videoWidth), \(videoHeight)), screenFrame=\(screenFrame)", level: .debug)
     let newFrame: NSRect
     // calculate 1x size
     let useRetinaSize = Preference.bool(for: .usePhysicalResolution)
@@ -2525,22 +2527,39 @@ class MainWindowController: PlayerWindowController {
                              width: CGFloat(videoWidth),
                              height: CGFloat(videoHeight))
     var finalSize = (useRetinaSize ? window.convertFromBacking(logicalFrame) : logicalFrame).size
+    log("setWindowScale: useRetinaSize=\(useRetinaSize), logicalFrame=\(logicalFrame), 1x finalSize=\(finalSize)", level: .debug)
     // calculate scaled size
     let scalef = CGFloat(scale)
     finalSize.width *= scalef
     finalSize.height *= scalef
+    log("setWindowScale: after applying scalef=\(scalef), finalSize=\(finalSize)", level: .debug)
     // set size
     if finalSize.width > screenFrame.size.width || finalSize.height > screenFrame.size.height {
       // if final size is bigger than screen
-      newFrame = window.frame.anchoredResize(to: window.frame.size.shrink(toSize: screenFrame.size), screenFrame: screenFrame).constrain(in: screenFrame)
+      let shrunkSize = window.frame.size.shrink(toSize: screenFrame.size)
+      log("setWindowScale: finalSize exceeds screen, shrinking CURRENT window.frame.size=\(window.frame.size) (not finalSize!) to screenFrame.size=\(screenFrame.size) -> shrunkSize=\(shrunkSize)", level: .debug)
+      newFrame = window.frame.anchoredResize(to: shrunkSize, screenFrame: screenFrame).constrain(in: screenFrame)
     } else {
       // otherwise, resize the window normally
-      newFrame = window.frame.anchoredResize(to: finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize), screenFrame: screenFrame).constrain(in: screenFrame)
+      let targetSize = finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)
+      log("setWindowScale: targetSize after satisfyMinSizeWithSameAspectRatio=\(targetSize)", level: .debug)
+      newFrame = window.frame.anchoredResize(to: targetSize, screenFrame: screenFrame).constrain(in: screenFrame)
     }
-    window.setFrame(newFrame, display: true, animate: true)
+    log("setWindowScale: computed newFrame=\(newFrame)", level: .debug)
+    if player.disableWindowAnimation || Preference.bool(for: .disableAnimations) || !window.isVisible {
+      window.setFrame(newFrame, display: true, animate: false)
+      log("setWindowScale: after non-animated setFrame, window.frame=\(window.frame)", level: .debug)
+    } else {
+      // animated `setFrame` can be inaccurate!
+      window.setFrame(newFrame, display: true, animate: true)
+      log("setWindowScale: after ANIMATED setFrame, window.frame=\(window.frame)", level: .debug)
+      window.setFrame(newFrame, display: true)
+      log("setWindowScale: after corrective non-animated setFrame, window.frame=\(window.frame)", level: .debug)
+    }
     updateWindowParametersForMPV(withFrame: newFrame)
     // Read back the actual resulting scale, not the requested one — min/max size clamping above
     // can make them differ (e.g. a 200% request that gets shrunk to fit the screen).
+    log("setWindowScale: cachedWindowScale after update=\(player.info.cachedWindowScale)", level: .debug)
     player.sendOSD(.windowScale(player.info.cachedWindowScale))
     MemoryUsage.shared.logUsage("after window scale changed (\(newFrame.width)x\(newFrame.height))")
   }

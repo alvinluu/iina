@@ -566,6 +566,15 @@ class PlayerCore: NSObject {
     // Better to directly reset icc-profile-auto. See issue #5727 for details.
     mpv.setFlag(MPVOption.GPURendererOptions.iccProfileAuto, false)
 
+    // video-aspect-override is a runtime option, not a per-file one: mpv leaves it untouched
+    // across a loadfile call unless the new file's own watch-later state overrides it, so a value
+    // left over from the previous file (whether restored from watch-later or set manually) would
+    // otherwise leak into every subsequently opened file. --reset-on-next-file does NOT help here
+    // since it only applies to playlist auto-advance, not to files loaded via the loadfile command
+    // (which is how IINA always opens files). Reset it directly before loadfile so a fresh default
+    // applies unless this new file's own watch-later restore (run as part of loadfile) sets it.
+    mpv.setString(MPVOption.Video.videoAspectOverride, "-1", level: .verbose)
+
     // Delay force-window until an actual file load to avoid Xcode-launched app startup hanging
     // while mpv tries to create a VO before IINA has entered its normal media-open path.
     mpv.setString(MPVOption.Window.forceWindow, "yes", level: .verbose)
