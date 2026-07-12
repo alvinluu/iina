@@ -80,6 +80,8 @@ class ViewLayer: CAOpenGLLayer {
 
   private var fbo: GLint = 1
 
+  private var lastLoggedViewportDims: [GLint] = [0, 0, 0, 0]
+
   /// Lock used to allow the main thread priority access to `displayLock`.
   private var mainThreadPriorityLock = MainThreadPriorityLock()
 
@@ -189,6 +191,14 @@ class ViewLayer: CAOpenGLLayer {
       glGetIntegerv(GLenum(GL_DRAW_FRAMEBUFFER_BINDING), &i)
       var dims: [GLint] = [0, 0, 0, 0]
       glGetIntegerv(GLenum(GL_VIEWPORT), &dims);
+
+      if dims != lastLoggedViewportDims {
+        lastLoggedViewportDims = dims
+        let aspectOverride = mpv.getString(MPVOption.Video.videoAspectOverride) ?? "?"
+        let dwidth = mpv.getInt(MPVProperty.dwidth)
+        let dheight = mpv.getInt(MPVProperty.dheight)
+        Logger.log("ViewLayer draw: viewport=\(dims), dwidth/dheight=(\(dwidth), \(dheight)), video-aspect-override=\(aspectOverride)", level: .debug)
+      }
 
       var flip: CInt = 1
 

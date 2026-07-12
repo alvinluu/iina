@@ -1628,7 +1628,13 @@ class MainWindowController: PlayerWindowController {
 
     videoView.needsLayout = true
     videoView.layoutSubtreeIfNeeded()
-    forceDraw("exited full screen mode")
+    // Playback being active normally means the view is already being redrawn continuously, so
+    // forceDraw would skip. But immediately after a fullscreen exit the viewport can still be
+    // mid-transition when mpv renders its next frame, baking incorrect letterboxing/pillarboxing
+    // into that frame; since the video layer just stretches whatever it last rendered on
+    // subsequent resizes, that bad frame then persists. Force an unconditional redraw once the
+    // layout has settled to guarantee at least one correctly-sized render.
+    forceDraw("exited full screen mode", always: true)
 
     if Preference.bool(for: .pauseWhenLeavingFullScreen) && player.info.state == .playing {
       player.pause()
@@ -2556,6 +2562,15 @@ class MainWindowController: PlayerWindowController {
       window.setFrame(newFrame, display: true)
       log("setWindowScale: after corrective non-animated setFrame, window.frame=\(window.frame)", level: .debug)
     }
+    // NSWindow.setFrame finishing does not guarantee videoViewContainer's Auto Layout-driven bounds
+    // (and therefore the GL viewport mpv renders into) have caught up yet. If mpv's next render
+    // lands mid-transition, it can read a viewport that mixes the OLD width with the NEW height (or
+    // vice versa), causing mpv to bake real pillarboxing/letterboxing into that frame — which then
+    // persists visually on later resizes since the layer just stretches its last-rendered image.
+    // Force layout to fully settle, then force a fresh render at the now-correct size.
+    videoView.needsLayout = true
+    videoView.layoutSubtreeIfNeeded()
+    forceDraw("window scale changed", always: true)
     updateWindowParametersForMPV(withFrame: newFrame)
     // Read back the actual resulting scale, not the requested one — min/max size clamping above
     // can make them differ (e.g. a 200% request that gets shrunk to fit the screen).
