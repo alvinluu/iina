@@ -2455,8 +2455,8 @@ class MainWindowController: PlayerWindowController {
       rect = originalVideoSize.centeredRect(in: screenRect)
       log("Centered original sized window in screen: \(rect)")
     } else {
-      // user is navigating in playlist. remain same window area.
-      rect = frame.areaPreservingResized(newWidth: CGFloat(width), height: CGFloat(height))
+      // user is navigating in playlist. remain same window area, anchored to nearest screen corner.
+      rect = frame.areaPreservingResized(newWidth: CGFloat(width), height: CGFloat(height), screenFrame: screenRect)
       log("Adjusted height of window preserving area: \(rect)")
     }
 

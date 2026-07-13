@@ -245,8 +245,9 @@ extension NSRect {
     return NSRect(x: newX, y: newY, width: newSize.width, height: newSize.height)
   }
 
-  // This function preserves the size of the new rect with the old rect
-  func areaPreservingResized(newWidth width: CGFloat, height: CGFloat) -> NSRect {
+  // This function preserves the size of the new rect with the old rect, anchoring the resize to
+  // whichever screen edge(s) the rect is currently closest to (see `anchoredResize`).
+  func areaPreservingResized(newWidth width: CGFloat, height: CGFloat, screenFrame: NSRect) -> NSRect {
     let targetAspectRatio = width / height
     let currentArea = size.width * size.height
 
@@ -254,12 +255,7 @@ extension NSRect {
     let size = NSSize(width: newWidth, height:  currentArea / newWidth)
       .satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)
 
-    return NSRect(
-      x: midX - size.width / 2,
-      y: midY - size.height / 2,
-      width: size.width,
-      height: size.height
-    )
+    return anchoredResize(to: size, screenFrame: screenFrame)
   }
 
   func constrain(in biggerRect: NSRect) -> NSRect {
