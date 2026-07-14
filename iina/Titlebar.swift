@@ -261,14 +261,15 @@ class Titlebar: NSView {
     removeBlackBarButton.isHidden = !shouldShow
   }
 
-  func updateTitle() {
+  // `title` is passed in directly rather than read back from `mainWindow.window?.title`.
+  // AppKit's own window-title disambiguation (appending " — <folder>" when it thinks titles
+  // collide) can get stuck after an especially long title and silently stop updating
+  // `window.title` on every later call, even though `representedFilename` keeps updating fine.
+  // Reading the title straight from the caller avoids inheriting that staleness.
+  func updateTitle(_ title: String) {
     guard let titleTextField, let docIcon else { return }
 
-    // Read the window's own `title` property directly rather than copying from the system
-    // titlebar's hidden NSTextField subview. That subview's rendered text can lag a beat behind
-    // `window.title` (e.g. on fast automatic playlist advance), which left this custom label
-    // showing the previous file's name.
-    titleTextField.stringValue = mainWindow.window?.title ?? ""
+    titleTextField.stringValue = title
     if let fileName = mainWindow.window?.representedFilename {
       docIcon.image = NSWorkspace.shared.icon(forFile: fileName)
     } else {

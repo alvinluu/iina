@@ -2066,11 +2066,14 @@ class MainWindowController: PlayerWindowController {
 
   @objc
   override func updateTitle() {
+    let displayTitle: String
     if player.info.isNetworkResource {
       window?.representedURL = nil
-      window?.title = player.getMediaTitle()
+      displayTitle = player.getMediaTitle()
+      window?.title = displayTitle
     } else {
       window?.representedURL = player.info.currentURL
+      displayTitle = player.info.currentURL?.lastPathComponent ?? ""
       // Workaround for issue #3543, IINA crashes reporting:
       // NSInvalidArgumentException [NSNextStepFrame _displayName]: unrecognized selector
       // When running on an M1 under Big Sur and using legacy full screen.
@@ -2090,12 +2093,17 @@ class MainWindowController: PlayerWindowController {
       // "setTitleWithRepresentedFilename throws NSInvalidArgumentException: NSNextStepFrame _displayName"
       // Feedback number FB9789129
       if Preference.bool(for: .useLegacyFullScreen) {
-        window?.title = player.info.currentURL?.lastPathComponent ?? ""
+        window?.title = displayTitle
       } else {
         window?.setTitleWithRepresentedFilename(player.info.currentURL?.path ?? "")
       }
     }
-    titleBarView?.updateTitle()
+    // Don't read the title back from `window.title` here: macOS's own window-title
+    // disambiguation (appending " — <folder>" when it thinks titles collide) can get stuck after
+    // an especially long title and silently stop updating `window.title` on every subsequent
+    // call, even though `representedFilename` keeps updating correctly. Pass the title we just
+    // computed directly instead, so the visible label can't inherit that AppKit-side staleness.
+    titleBarView?.updateTitle(displayTitle)
 
     // Sometimes the doc icon may not be available, eg. when opened an online video.
     // We should try to add it every time when window title changed.
