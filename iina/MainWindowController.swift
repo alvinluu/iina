@@ -669,8 +669,24 @@ class MainWindowController: PlayerWindowController {
       // is moved to a new screen such as when the window is on an external display and that display
       // is disconnected. In legacy full screen mode IINA is responsible for adjusting the window's
       // frame.
-      guard countChanged, fsState.isFullscreen, Preference.bool(for: .useLegacyFullScreen) else { return }
-      setWindowFrameForLegacyFullScreen()
+      if countChanged, fsState.isFullscreen, Preference.bool(for: .useLegacyFullScreen) {
+        setWindowFrameForLegacyFullScreen()
+        return
+      }
+      // This notification also fires when another app's native fullscreen transition briefly
+      // changes the screen's visibleFrame (e.g. the menu bar hiding), even though the screen
+      // count is unchanged. AppKit's automatic frame constraining in that situation does not
+      // respect this window's aspect ratio, which can leave the window's width unchanged while
+      // its height no longer matches the video's aspect ratio. Correct the height here so the
+      // video isn't left distorted.
+      if !fsState.isFullscreen, window.aspectRatio != .zero {
+        let targetAspect = window.aspectRatio.aspect
+        var frame = window.frame
+        if abs(frame.size.aspect - targetAspect) > 0.001 {
+          frame.size.height = frame.size.width / targetAspect
+          window.setFrame(frame, display: true)
+        }
+      }
     }
 
     // Observe the loop knobs on the progress bar and update mpv when the knobs move.
