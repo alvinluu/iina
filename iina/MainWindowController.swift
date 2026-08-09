@@ -2543,6 +2543,23 @@ class MainWindowController: PlayerWindowController {
     }
   }
 
+  // KNOWN ISSUE (unfixed, believed to be an AppKit bug, not ours): after this window has entered
+  // and exited full screen at least once (native `toggleFullScreen` or our own "legacy" full
+  // screen -- both reproduce identically), a call here that shrinks the window's width can appear
+  // to succeed (window.frame reads back correctly immediately after setFrame) but silently revert
+  // to the width the window had right after exiting full screen, anywhere from under a second to
+  // several seconds later. Live lldb debugging traced this to AppKit itself, not app code: a
+  // required 'NSWindow.ContentLayoutGuide.Width' constraint on the window's private NSThemeFrame
+  // freezes at the post-fullscreen-exit width and gets continuously re-enforced by
+  // `-[NSWindow(NSConstraintBasedLayoutInternal) _changeWindowFrameFromConstraintsIfNecessary]`,
+  // called from `layoutIfNeeded` on essentially every display refresh -- independent of anything
+  // this app does. Ruled out, each confirmed by direct rebuild+retest, as NOT the cause: removing
+  // `.fullSizeContentView`/`titlebarAppearsTransparent` from this window's styleMask entirely,
+  // removing its NSToolbar entirely, using the legacy (non-native) full-screen path instead of
+  // `toggleFullScreen`, and testing with a completely clean UserDefaults domain. Directly
+  // overwriting the frozen constraint's `.constant` works only until the next re-enforcement pass.
+  // No fix found from the app side; most visible with portrait-oriented video, since that's when a
+  // requested width is more likely to be smaller than whatever width got frozen in.
   func setWindowScale(_ scale: Double) {
     guard loaded, let window, fsState == .windowed else { return }
     log("setWindowScale(\(scale)) called. window.frame before=\(window.frame)", level: .debug)
