@@ -1129,7 +1129,45 @@ class MainWindowController: PlayerWindowController {
 
   override func rightMouseUp(with event: NSEvent) {
     workaroundCursorDefect()
-    super.rightMouseUp(with: event)
+    // Right-click always shows the video-scale picker over the video itself, replacing the
+    // configurable `rightClickAction` (default: pause) there -- requested directly by the user in
+    // place of that default. Areas with their own right-click-adjacent behavior (OSC, sidebars,
+    // title bar) and full screen (where window scale doesn't apply) still fall through to the
+    // normal handling.
+    guard !fsState.isFullscreen, !event.inAnyOf(mouseActionDisabledViews) else {
+      super.rightMouseUp(with: event)
+      return
+    }
+    showVideoScaleMenu(with: event)
+  }
+
+  /// Builds and shows the video-scale context menu, reusing the same tags/action
+  /// (`menuChangeWindowSize(_:)`) as the Window Size menu bar items so the two stay in sync.
+  private func showVideoScaleMenu(with event: NSEvent) {
+    let menuItems = AppDelegate.shared.menuController!
+    let currentScale = player.info.cachedWindowScale
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    for item in [menuItems.halfSize, menuItems.scale70, menuItems.normalSize,
+                 menuItems.scale140, menuItems.scale170, menuItems.doubleSize] {
+      guard let item else { continue }
+      let sizeMap: [Int: Double] = [0: 0.5, 4: 0.7, 5: 1, 6: 1.3, 7: 1.7, 2: 2]
+      let isCurrent = sizeMap[item.tag].map { abs($0 - currentScale) < 0.005 } ?? false
+      menu.addItem(withTitle: item.title, action: #selector(menuChangeWindowSize(_:)), target: self,
+                   tag: item.tag, stateOn: isCurrent)
+    }
+    menu.addItem(NSMenuItem.separator())
+    if let fitToScreen = menuItems.fitToScreen {
+      menu.addItem(withTitle: fitToScreen.title, action: #selector(menuChangeWindowSize(_:)),
+                   target: self, tag: fitToScreen.tag)
+    }
+    menu.addItem(NSMenuItem.separator())
+    if let pictureInPicture = menuItems.pictureInPicture {
+      menu.addItem(withTitle: pipStatus == .inPIP ? Constants.String.exitPIP : Constants.String.pip,
+                   action: #selector(menuTogglePIP(_:)), target: self,
+                   enabled: pictureInPicture.isEnabled)
+    }
+    NSMenu.popUpContextMenu(menu, with: event, for: videoView)
   }
 
   override internal func performMouseAction(_ action: Preference.MouseClickAction) {
@@ -1438,6 +1476,9 @@ class MainWindowController: PlayerWindowController {
   ///     [willEnterFullScreenNotification](https://developer.apple.com/documentation/appkit/nswindow/willenterfullscreennotification).
   func windowWillEnterFullScreen(_ notification: Notification) {
     log("Entering full screen mode")
+    // Don't let a width we trusted from before this full-screen cycle bleed into the anchor math
+    // after returning -- see the KNOWN ISSUE comment above setWindowScale.
+    lastAppliedWindowScaleFrame = nil
     // When playback is paused the display link is stopped in order to avoid wasting energy on
     // needless processing. It must be running while transitioning to full screen mode.
     videoView.displayActive()
@@ -2848,6 +2889,12 @@ class MainWindowController: PlayerWindowController {
     }
   }
 
+  /// The frame `setWindowScale` itself last applied via `setFrame`, used to work around AppKit
+  /// silently reverting `window.frame`'s width asynchronously afterward -- see the KNOWN ISSUE
+  /// comment below. Reset on full-screen entry so a width trusted from before the cycle can't leak
+  /// into the anchor math after returning.
+  private var lastAppliedWindowScaleFrame: NSRect?
+
   // KNOWN ISSUE (unfixed, believed to be an AppKit bug, not ours): after this window has entered
   // and exited full screen at least once (native `toggleFullScreen` or our own "legacy" full
   // screen -- both reproduce identically), a call here that shrinks the window's width can appear
@@ -2861,21 +2908,36 @@ class MainWindowController: PlayerWindowController {
   // this app does. Ruled out, each confirmed by direct rebuild+retest, as NOT the cause: removing
   // `.fullSizeContentView`/`titlebarAppearsTransparent` from this window's styleMask entirely,
   // removing its NSToolbar entirely, using the legacy (non-native) full-screen path instead of
-  // `toggleFullScreen`, and testing with a completely clean UserDefaults domain. Directly
-  // overwriting the frozen constraint's `.constant` works only until the next re-enforcement pass.
-  // No fix found from the app side; most visible with portrait-oriented video, since that's when a
-  // requested width is more likely to be smaller than whatever width got frozen in.
+  // `toggleFullScreen`, using a non-animated `setFrame`, and testing with a completely clean
+  // UserDefaults domain. Directly overwriting the frozen constraint's `.constant` works only until
+  // the next re-enforcement pass. No fix found from the app side. CONFIRMED via a live debug-log
+  // capture that this also happens with NO full-screen transition involved at all, purely from
+  // repeated `setWindowScale` calls once one of them lands near/at `AppData.mainWindowMinSize` --
+  // and that only `window.frame`'s WIDTH goes stale; origin and height read back correctly. See
+  // `lastAppliedWindowScaleFrame` below for the workaround.
   func setWindowScale(_ scale: Double) {
     guard loaded, let window, fsState == .windowed else { return }
-    log("setWindowScale(\(scale)) called. window.frame before=\(window.frame)", level: .debug)
+    // Workaround for the KNOWN ISSUE above: don't trust window.frame's width, since AppKit can
+    // silently revert it asynchronously between calls. If origin and height still match what we
+    // ourselves set last time, nothing else has touched this window since (no manual drag/resize),
+    // so it's safe to substitute the width we know we actually applied instead of AppKit's
+    // possibly-stale readback. Confirmed via live debug log: the stale width was consistently the
+    // window's width from several calls prior, and anchoredResize -- which anchors to the corner
+    // this window is currently closest to -- used it to compute maxX (for a right/bottom-anchored
+    // window), producing a newX shifted by exactly (stale width - true width) on every press.
+    var currentFrame = window.frame
+    if let last = lastAppliedWindowScaleFrame, last.origin == currentFrame.origin, last.height == currentFrame.height {
+      currentFrame.size.width = last.width
+    }
+    log("setWindowScale(\(scale)) called. window.frame before=\(window.frame), using currentFrame=\(currentFrame)", level: .debug)
     let screenFrame = (window.screen ?? NSScreen.main!).visibleFrame
     let (videoWidth, videoHeight) = player.videoSizeForDisplay
     log("setWindowScale: videoSizeForDisplay=(\(videoWidth), \(videoHeight)), screenFrame=\(screenFrame)", level: .debug)
     let newFrame: NSRect
     // calculate 1x size
     let useRetinaSize = Preference.bool(for: .usePhysicalResolution)
-    let logicalFrame = NSRect(x: window.frame.origin.x,
-                             y: window.frame.origin.y,
+    let logicalFrame = NSRect(x: currentFrame.origin.x,
+                             y: currentFrame.origin.y,
                              width: CGFloat(videoWidth),
                              height: CGFloat(videoHeight))
     var finalSize = (useRetinaSize ? window.convertFromBacking(logicalFrame) : logicalFrame).size
@@ -2888,26 +2950,19 @@ class MainWindowController: PlayerWindowController {
     // set size
     if finalSize.width > screenFrame.size.width || finalSize.height > screenFrame.size.height {
       // if final size is bigger than screen
-      let shrunkSize = window.frame.size.shrink(toSize: screenFrame.size)
-      log("setWindowScale: finalSize exceeds screen, shrinking CURRENT window.frame.size=\(window.frame.size) (not finalSize!) to screenFrame.size=\(screenFrame.size) -> shrunkSize=\(shrunkSize)", level: .debug)
-      newFrame = window.frame.anchoredResize(to: shrunkSize, screenFrame: screenFrame).constrain(in: screenFrame)
+      let shrunkSize = currentFrame.size.shrink(toSize: screenFrame.size)
+      log("setWindowScale: finalSize exceeds screen, shrinking CURRENT currentFrame.size=\(currentFrame.size) (not finalSize!) to screenFrame.size=\(screenFrame.size) -> shrunkSize=\(shrunkSize)", level: .debug)
+      newFrame = currentFrame.anchoredResize(to: shrunkSize, screenFrame: screenFrame).constrain(in: screenFrame)
     } else {
       // otherwise, resize the window normally
       let targetSize = finalSize.satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)
       log("setWindowScale: targetSize after satisfyMinSizeWithSameAspectRatio=\(targetSize)", level: .debug)
-      newFrame = window.frame.anchoredResize(to: targetSize, screenFrame: screenFrame).constrain(in: screenFrame)
+      newFrame = currentFrame.anchoredResize(to: targetSize, screenFrame: screenFrame).constrain(in: screenFrame)
     }
     log("setWindowScale: computed newFrame=\(newFrame)", level: .debug)
-    if player.disableWindowAnimation || Preference.bool(for: .disableAnimations) || !window.isVisible {
-      window.setFrame(newFrame, display: true, animate: false)
-      log("setWindowScale: after non-animated setFrame, window.frame=\(window.frame)", level: .debug)
-    } else {
-      // animated `setFrame` can be inaccurate!
-      window.setFrame(newFrame, display: true, animate: true)
-      log("setWindowScale: after ANIMATED setFrame, window.frame=\(window.frame)", level: .debug)
-      window.setFrame(newFrame, display: true)
-      log("setWindowScale: after corrective non-animated setFrame, window.frame=\(window.frame)", level: .debug)
-    }
+    window.setFrame(newFrame, display: true, animate: false)
+    lastAppliedWindowScaleFrame = newFrame
+    log("setWindowScale: after non-animated setFrame, window.frame=\(window.frame)", level: .debug)
     // NSWindow.setFrame finishing does not guarantee videoViewContainer's Auto Layout-driven bounds
     // (and therefore the GL viewport mpv renders into) have caught up yet. If mpv's next render
     // lands mid-transition, it can read a viewport that mixes the OLD width with the NEW height (or
