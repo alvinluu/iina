@@ -65,12 +65,6 @@ struct Preference {
 
     static let useLegacyFullScreen = Key("useLegacyFullScreen")
 
-    /** Use a separate, disposable window for full screen instead of transitioning the main
-     window in place (bool). Opt-in workaround for a macOS bug where the main window's frame
-     gets stuck after a full-screen exit; see the KNOWN ISSUE note above `setWindowScale` in
-     MainWindowController.swift. */
-    static let useDetachedFullScreen = Key("useDetachedFullScreen")
-
     /** Black out other monitors while fullscreen (bool) */
     static let blackOutMonitor = Key("blackOutMonitor")
 
@@ -1075,7 +1069,6 @@ struct Preference {
     .pauseWhenOpen: false,
     .fullScreenWhenOpen: false,
     .useLegacyFullScreen: false,
-    .useDetachedFullScreen: false,
     .showChapterPos: false,
     .resumeLastPosition: true,
     .preventScreenSaver: true,
@@ -1486,7 +1479,6 @@ struct Preference {
            .touchbarShowRemainingTime,
            .trackAllFilesInRecentOpenMenu,
            .useAppleRemote,
-           .useDetachedFullScreen,
            .useLegacyFullScreen,
            .useMediaKeys,
            .useMpvOsd,

@@ -1366,31 +1366,6 @@ class MainWindowController: PlayerWindowController {
 
   func windowWillClose(_ notification: Notification) {
     shouldApplyInitialWindowSize = true
-    // If quitting (or otherwise closing) while detached full screen is still active,
-    // exitDetachedFullScreen() never runs, leaving the main window's content moved away into the
-    // full-screen window -- it would otherwise flash briefly as an empty black window during
-    // shutdown's window-closing pass. Move the content back directly (skipping the full
-    // enter/exit delegate dance, which assumes normal operation, not mid-shutdown) so the main
-    // window closes in a normal, non-empty state.
-    if let mainWindow = windowedModeWindow, let fullScreenWindow = self.window,
-       let targetView = mainWindow.contentView {
-      videoViewContainer.removeFromSuperview()
-      targetView.addSubview(videoViewContainer, positioned: .below, relativeTo: nil)
-      videoViewContainer.translatesAutoresizingMaskIntoConstraints = false
-      switch oscPosition {
-      case .floating:
-        oscFloatingView.removeFromSuperview()
-        targetView.addSubview(oscFloatingView)
-      case .bottom:
-        oscBottomView.removeFromSuperview()
-        targetView.addSubview(oscBottomView)
-      case .top:
-        break
-      }
-      self.window = mainWindow
-      windowedModeWindow = nil
-      fullScreenWindow.orderOut(nil)
-    }
     // Close PIP
     if pipStatus == .inPIP {
       exitPIP()
@@ -1734,10 +1709,7 @@ class MainWindowController: PlayerWindowController {
     switch fsState {
     case .windowed:
       guard !player.isInMiniPlayer else { return }
-      if Preference.bool(for: .useDetachedFullScreen) {
-        log("Will enter detached full screen mode")
-        self.enterDetachedFullScreen()
-      } else if Preference.bool(for: .useLegacyFullScreen) {
+      if Preference.bool(for: .useLegacyFullScreen) {
         log("Will enter legacy full screen mode")
         self.legacyAnimateToFullscreen()
       } else {
@@ -1745,10 +1717,7 @@ class MainWindowController: PlayerWindowController {
         window.toggleFullScreen(self)
       }
     case let .fullscreen(legacy, oldFrame):
-      if windowedModeWindow != nil {
-        log("Will exit detached full screen mode")
-        self.exitDetachedFullScreen()
-      } else if legacy {
+      if legacy {
         log("Will exit legacy full screen mode")
         self.legacyAnimateToWindowed(framePriorToBeingInFullscreen: oldFrame)
       } else {
@@ -1857,213 +1826,6 @@ class MainWindowController: PlayerWindowController {
     windowDidEnterFullScreen(Notification(name: .iinaLegacyFullScreen))
   }
 
-  // MARK: - Detached full screen (opt-in workaround for the KNOWN ISSUE above setWindowScale)
-  //
-  // Presents full screen in a separate, disposable FullScreenWindow instead of transitioning the
-  // main window in place, so the main window's own AppKit-private per-window state is never
-  // touched by a full-screen cycle at all. `self.window` (NSWindowController's own settable
-  // property) is temporarily reassigned to the new window for the duration -- since this
-  // controller instance, its delegate identity, and its @IBOutlet references to specific
-  // *subviews* never change, the overwhelming majority of existing code that reads `self.window`/
-  // `player.mainWindow.window` automatically targets the correct window with no other changes
-  // needed. Only the actual view content that needs to be visible in full screen is moved over.
-  //
-  // Scope: only `videoViewContainer` (carrying `videoView`) and the currently active OSC container
-  // (bottom or floating) are reparented. Sidebars are closed before entering (their constraints
-  // aren't ported) and reopened after exiting if they were open before. `.top` OSC position is
-  // temporarily switched to `.bottom` for the duration, restored after. OSD messages, the
-  // thumbnail/time preview, the buffering spinner, and the additional-info overlay are not
-  // available while in this mode for now (their constraint setup references titleBarView/sidebars,
-  // neither of which travel into the full-screen window in this pass).
-
-  /// Non-nil exactly while a detached full-screen session is active; holds the real main window so
-  /// it can be swapped back into `self.window` on exit. Also doubles as the "are we in detached
-  /// full screen" flag.
-  private var windowedModeWindow: NSWindow?
-  /// Remembers which sidebars (if any) were open before they were force-closed on entry, so they
-  /// can be reopened on exit.
-  private var sidebarsToReopenAfterDetachedFullScreen: [SidebarController.ViewType] = []
-  /// Remembers the OSC position before it was temporarily forced to `.bottom` (only set if it was
-  /// `.top`), so it can be restored on exit.
-  private var oscPositionToRestoreAfterDetachedFullScreen: Preference.OSCPosition?
-
-  private func enterDetachedFullScreen() {
-    guard let mainWindow = self.window, windowedModeWindow == nil, !player.isInMiniPlayer else { return }
-
-    sidebarsToReopenAfterDetachedFullScreen = [sidebars.leadingSidebar.status, sidebars.trailingSidebar.status]
-      .filter { $0 != .hidden }
-    sidebars.hideAllSideBars(animate: false)
-
-    if oscPosition == .top {
-      oscPositionToRestoreAfterDetachedFullScreen = .top
-      setupOnScreenController(withPosition: .bottom)
-    }
-
-    // call delegate -- captures mainWindow.frame as fsState.priorWindowedFrame while it's still
-    // the current (untouched) window
-    windowWillEnterFullScreen(Notification(name: .iinaLegacyFullScreen))
-
-    let screen = mainWindow.screen ?? NSScreen.main!
-    let fullScreenWindow = FullScreenWindow(screen: screen)
-    fullScreenWindow.delegate = self
-
-    guard let targetView = fullScreenWindow.contentView else {
-      log("enterDetachedFullScreen: FullScreenWindow has no contentView, aborting", level: .error)
-      return
-    }
-    // Match showWindow's initial tracking-area setup, since this is a fresh content view that
-    // never went through that one-time setup.
-    targetView.addTrackingArea(NSTrackingArea(
-      rect: targetView.bounds,
-      options: [.activeAlways, .enabledDuringMouseDrag, .inVisibleRect, .mouseEnteredAndExited, .mouseMoved],
-      owner: self, userInfo: ["obj": 0]))
-
-    videoViewContainer.removeFromSuperview()
-    targetView.addSubview(videoViewContainer, positioned: .below, relativeTo: nil)
-    videoViewContainer.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      videoViewContainer.leadingAnchor.constraint(equalTo: targetView.leadingAnchor),
-      videoViewContainer.trailingAnchor.constraint(equalTo: targetView.trailingAnchor),
-      videoViewContainer.topAnchor.constraint(equalTo: targetView.topAnchor),
-      videoViewContainer.bottomAnchor.constraint(equalTo: targetView.bottomAnchor),
-    ])
-
-    switch oscPosition {
-    case .floating:
-      // oscFloatingView's xConstraint/yConstraint (centering it relative to videoViewContainer) do
-      // NOT survive this reparent -- videoViewContainer already moved to targetView above, so by
-      // the time oscFloatingView itself moves, AppKit has silently dropped them (see
-      // setupConstraints()'s own doc comment). Rebuild them fresh, then recompute the actual
-      // position against the new (much wider) videoViewContainer size -- force a layout pass first
-      // so that size is actually resolved before reading it.
-      oscFloatingView.removeFromSuperview()
-      targetView.addSubview(oscFloatingView)
-      oscFloatingView.setupConstraints()
-      targetView.layoutSubtreeIfNeeded()
-      oscFloatingView.updatePosition()
-    case .bottom:
-      oscBottomView.removeFromSuperview()
-      targetView.addSubview(oscBottomView)
-      oscBottomView.translatesAutoresizingMaskIntoConstraints = false
-      NSLayoutConstraint.activate([
-        oscBottomView.leadingAnchor.constraint(equalTo: targetView.leadingAnchor),
-        oscBottomView.trailingAnchor.constraint(equalTo: targetView.trailingAnchor),
-      ])
-      oscBottomView.updateVerticalConstraint(isDisplaying: true)
-    case .top:
-      break // switched to .bottom above before this point
-    }
-
-    // osdView's original constraints (see windowDidLoad) pin its leading edge 8pt past the leading
-    // sidebar (left-aligned even in windowed mode, by original design) -- reparent it into
-    // targetView instead, horizontally centered rather than left-pinned. Confirmed directly at the
-    // user's own request: full screen should center it, windowed mode's existing left-aligned look
-    // stays untouched (restored as-is on exit, see exitDetachedFullScreen).
-    osdView.removeFromSuperview()
-    targetView.addSubview(osdView)
-    osdView.translatesAutoresizingMaskIntoConstraints = false
-    osdView.padding(.top(8), .leading(greaterThan: 8), .trailing(greaterThan: 8), .bottom(greaterThan: 8), from: targetView)
-    osdView.center(.x, with: targetView)
-
-    windowedModeWindow = mainWindow
-    self.window = fullScreenWindow
-    mainWindow.orderOut(nil)
-    fullScreenWindow.makeKeyAndOrderFront(nil)
-    NSApp.presentationOptions.insert([.autoHideMenuBar, .autoHideDock])
-
-    // call delegate
-    windowDidEnterFullScreen(Notification(name: .iinaLegacyFullScreen))
-  }
-
-  private func exitDetachedFullScreen() {
-    guard let fullScreenWindow = self.window, let mainWindow = windowedModeWindow else { return }
-
-    // call delegate
-    windowWillExitFullScreen(Notification(name: .iinaLegacyFullScreen))
-
-    guard let targetView = mainWindow.contentView else {
-      log("exitDetachedFullScreen: main window has no contentView, aborting", level: .error)
-      return
-    }
-
-    // Swap self.window back to the main window BEFORE anything below that implicitly reads
-    // self.window (setupVideoContainerConstraints() does) -- otherwise it builds constraints
-    // against the wrong (still-current, about-to-be-discarded) full-screen window's contentView,
-    // which is what caused entering-fullscreen-with-no-way-out before this fix.
-    self.window = mainWindow
-    windowedModeWindow = nil
-
-    videoViewContainer.removeFromSuperview()
-    targetView.addSubview(videoViewContainer, positioned: .below, relativeTo: nil)
-    videoViewContainer.translatesAutoresizingMaskIntoConstraints = false
-    // Restores the user's actual edgeToEdgeVideo/dockedControlBarAndTitlebar/sidebar layout
-    // preferences, unlike the always-edge-to-edge constraints used while entering above.
-    setupVideoContainerConstraints()
-
-    switch oscPosition {
-    case .floating:
-      // Mirrors enterDetachedFullScreen: rebuild xConstraint/yConstraint fresh (they don't survive
-      // this reparent either) and recompute against windowed mode's narrower videoViewContainer.
-      oscFloatingView.removeFromSuperview()
-      targetView.addSubview(oscFloatingView)
-      oscFloatingView.setupConstraints()
-      targetView.layoutSubtreeIfNeeded()
-      oscFloatingView.updatePosition()
-    case .bottom:
-      oscBottomView.removeFromSuperview()
-      targetView.addSubview(oscBottomView)
-      oscBottomView.translatesAutoresizingMaskIntoConstraints = false
-      oscBottomView.padding(.horizontal)
-      oscBottomView.updateVerticalConstraint(isDisplaying: true)
-    case .top:
-      break
-    }
-
-    // Restores osdView's original constraints, relative to titleBarView/the leading sidebar again
-    // now that both are back (see the matching reparent in enterDetachedFullScreen).
-    osdView.removeFromSuperview()
-    targetView.addSubview(osdView)
-    osdView.translatesAutoresizingMaskIntoConstraints = false
-    osdView.padding(.trailing(greaterThan: 8), .bottom(greaterThan: 8))
-      .spacing(.top(8), to: titleBarView)
-      .spacing(.leading(8), to: sidebars.leadingSidebar.view)
-
-    mainWindow.makeKeyAndOrderFront(nil)
-    fullScreenWindow.orderOut(nil)
-    NSApp.presentationOptions.remove([.autoHideMenuBar, .autoHideDock])
-
-    // call delegate
-    windowDidExitFullScreen(Notification(name: .iinaLegacyFullScreen))
-
-    if let restorePosition = oscPositionToRestoreAfterDetachedFullScreen {
-      setupOnScreenController(withPosition: restorePosition)
-      oscPositionToRestoreAfterDetachedFullScreen = nil
-    }
-    for type in sidebarsToReopenAfterDetachedFullScreen {
-      sidebars.show(sidebar: type)
-    }
-    sidebarsToReopenAfterDetachedFullScreen = []
-  }
-
-  /// `FullScreenWindow` should never move or resize away from its screen's full bounds while
-  /// detached full screen is active -- there's no titlebar or other UI to deliberately drag/resize
-  /// it, so any drift can only come from something external. Confirmed via a live `lldb` capture
-  /// (breakpoints on `-[NSWindow setFrame:display:]`/`_setFrameCommon:display:fromServer:`): a
-  /// window-management tool watching `kAXWindowCreatedNotification` can reposition/resize this
-  /// window via the Accessibility API moments after it's created, before it's had a chance to be
-  /// recognized and excluded by that tool's own "don't touch this app" logic. Rather than depend on
-  /// every such tool getting that right, self-correct on our own side: called from `windowDidMove`/
-  /// `windowDidResize`, both of which fire for an externally-driven `setFrame:` exactly as they
-  /// would for one of our own, giving this a reliable hook to snap straight back.
-  private func correctDetachedFullScreenFrameIfNeeded() {
-    guard windowedModeWindow != nil, let window else { return }
-    let expected = window.screen?.frame ?? NSScreen.main?.frame ?? window.frame
-    if window.frame != expected {
-      log("Detached full screen window frame drifted to \(window.frame), correcting back to \(expected)", level: .warning)
-      window.setFrame(expected, display: true)
-    }
-  }
-
   // MARK: - Window delegate: Size
 
   func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
@@ -2083,7 +1845,6 @@ class MainWindowController: PlayerWindowController {
 
   func windowDidResize(_ notification: Notification) {
     guard loaded, let window = window else { return }
-    correctDetachedFullScreenFrameIfNeeded()
     if !window.inLiveResize {
       liveText.requestAnalysis()
     }
@@ -2158,7 +1919,6 @@ class MainWindowController: PlayerWindowController {
   // MARK: - Window delegate: Activeness status
   func windowDidMove(_ notification: Notification) {
     guard loaded, let window else { return }
-    correctDetachedFullScreenFrameIfNeeded()
     player.events.emit(.windowMoved, data: window.frame)
   }
 

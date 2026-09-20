@@ -67,19 +67,7 @@ class OSCFloatingView: TranslucentView {
     }
   }
 
-  /// Safe to call more than once (e.g. after reparenting into a different window) -- explicitly
-  /// tears down any existing xConstraint/yConstraint first rather than assuming the old ones are
-  /// gone. They otherwise are NOT: `removeFromSuperview()` only auto-deactivates a constraint when
-  /// the view it's called on is removed while the constraint's other item is still in that same
-  /// hierarchy. Detached full screen's reparenting briefly puts this view and `videoView` in two
-  /// disconnected windows (videoView moves to the new window first), so by the time this view
-  /// itself is removed/re-added, AppKit no longer recognizes the old constraint as tied to that
-  /// removal at all -- it neither reactivates once both views share a window again nor responds to
-  /// a later `.constant` write, silently freezing this view whatever position it last resolved to.
   func setupConstraints() {
-    xConstraint?.isActive = false
-    yConstraint?.isActive = false
-
     let videoView = mainWindow.videoViewContainer!
     padding(.horizontal(greaterThan: 1), from: videoView)
 
