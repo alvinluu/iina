@@ -387,6 +387,7 @@
 		E38BA1C0253E54F2000B551D /* JavascriptAPIGlobal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38BA1BF253E54F2000B551D /* JavascriptAPIGlobal.swift */; };
 		E38BA1C4254110BE000B551D /* JavascriptMessageHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38BA1C3254110BD000B551D /* JavascriptMessageHub.swift */; };
 		E38BD4AF20054BD9007635FC /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38BD4AE20054BD9007635FC /* MainWindow.swift */; };
+		82D0ACFA55402181DB9DD86C /* FullScreenWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB31B2CBC9D850B3223DEA2 /* FullScreenWindow.swift */; };
 		E392B8CC2FB2263F005F2C24 /* SettingsSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E392B8CB2FB2263A005F2C24 /* SettingsSearch.swift */; };
 		E3958586253309C90096811F /* PluginSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3958585253309C90096811F /* PluginSidebarView.swift */; };
 		E395858A253314400096811F /* JavascriptAPISidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39585892533143F0096811F /* JavascriptAPISidebarView.swift */; };
@@ -1797,6 +1798,7 @@
 		E38BA1BF253E54F2000B551D /* JavascriptAPIGlobal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptAPIGlobal.swift; sourceTree = "<group>"; };
 		E38BA1C3254110BD000B551D /* JavascriptMessageHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavascriptMessageHub.swift; sourceTree = "<group>"; };
 		E38BD4AE20054BD9007635FC /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
+		EFB31B2CBC9D850B3223DEA2 /* FullScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenWindow.swift; sourceTree = "<group>"; };
 		E392B8CB2FB2263A005F2C24 /* SettingsSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSearch.swift; sourceTree = "<group>"; };
 		E393669923BDD1850070D626 /* IINA.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = IINA.entitlements; sourceTree = "<group>"; };
 		E3958585253309C90096811F /* PluginSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginSidebarView.swift; sourceTree = "<group>"; };
@@ -2275,6 +2277,7 @@
 				E31E62FA2FD38516005527B2 /* LayoutValue.swift */,
 				84A0BA931D2F9E9600BC8DA1 /* MainMenu.xib */,
 				E38BD4AE20054BD9007635FC /* MainWindow.swift */,
+				EFB31B2CBC9D850B3223DEA2 /* FullScreenWindow.swift */,
 				D1B4E24D2A3AFC9100E36F1D /* MiniPlayerWindow.swift */,
 				84CFC92523F8DDE000381E5B /* PlayerWindowController.swift */,
 				51CACB9429D500290034CEE5 /* VideoPIPViewController.swift */,
@@ -3265,6 +3268,7 @@
 				E3513AFB20F120F600F8C347 /* PreferenceViewController.swift in Sources */,
 				51AC1CAB2A9FBF3700DF7079 /* OpenSubClient.swift in Sources */,
 				E38BD4AF20054BD9007635FC /* MainWindow.swift in Sources */,
+				82D0ACFA55402181DB9DD86C /* FullScreenWindow.swift in Sources */,
 				51E63DFB29CFB031008AFC20 /* PlaySlider.swift in Sources */,
 				84F5D4A01E44F9DB0060A838 /* KeyBindingItem.swift in Sources */,
 				84E5221323FF3D080006FDA1 /* JavascriptAPIPlaylist.swift in Sources */,

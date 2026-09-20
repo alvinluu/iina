@@ -22,6 +22,7 @@ class OSCFloatingView: TranslucentView {
 
   private var xConstraint: NSLayoutConstraint!
   private var yConstraint: NSLayoutConstraint!
+  private var boundaryConstraints: [NSLayoutConstraint] = []
 
   var mousePosRelatedToView: CGPoint?
 
@@ -67,9 +68,26 @@ class OSCFloatingView: TranslucentView {
     }
   }
 
+  /// Safe to call more than once (e.g. after reparenting into a different window) -- explicitly
+  /// tears down any existing xConstraint/yConstraint/boundaryConstraints first rather than assuming
+  /// the old ones are gone. They otherwise are NOT: `removeFromSuperview()` only auto-deactivates a
+  /// constraint when the view it's called on is removed while the constraint's other item is still
+  /// in that same hierarchy. Detached full screen's reparenting briefly puts this view and
+  /// `videoView` in two disconnected windows, so by the time this view itself is removed/re-added,
+  /// AppKit no longer recognizes the old constraints as tied to that removal at all. Confirmed
+  /// directly via a live user report: without deactivating the old boundaryConstraints pair before
+  /// creating a new one on each call, they pile up across repeated enter/exit cycles until the
+  /// window's width becomes unresponsive to manual dragging.
   func setupConstraints() {
+    xConstraint?.isActive = false
+    yConstraint?.isActive = false
+    NSLayoutConstraint.deactivate(boundaryConstraints)
+
     let videoView = mainWindow.videoViewContainer!
-    padding(.horizontal(greaterThan: 1), from: videoView)
+    let leadingBoundary = leadingAnchor.constraint(greaterThanOrEqualTo: videoView.leadingAnchor, constant: 1)
+    let trailingBoundary = trailingAnchor.constraint(lessThanOrEqualTo: videoView.trailingAnchor, constant: -1)
+    boundaryConstraints = [leadingBoundary, trailingBoundary]
+    NSLayoutConstraint.activate(boundaryConstraints)
 
     xConstraint = centerXAnchor.constraint(equalTo: videoView.leadingAnchor)
     xConstraint.priority = .defaultLow
