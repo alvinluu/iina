@@ -18,6 +18,8 @@
 
 This is a personal fork of IINA, rebranded as **Nina**, built for daily use alongside a stock IINA install (separate app name, icon, and bundle identifier — `com.colliderli.nina` — so both can run side by side without sharing preferences). Customizations live on the [`nina`](https://github.com/alvinluu/iina/tree/nina) branch; `develop` is kept as an untouched mirror of upstream so new IINA releases can still be merged in.
 
+Maintained by [Alvin Luu](https://alvinluu.com).
+
 Changes on top of stock IINA:
 
 - **Branding**: new name, app icon, and bundle identifier throughout (menu bar, Info.plist, embedded share extension).
