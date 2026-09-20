@@ -228,6 +228,18 @@ class PlayerCore: NSObject {
 
   var syncUITimer: Timer?
 
+  /// Periodically re-saves playback position/history while a file is active, so a hard kill
+  /// (`kill -9`/SIGKILL, a crash, a power loss) that skips the normal shutdown save entirely never
+  /// loses more than a second or so of progress. Confirmed directly at the user's own request,
+  /// after repeated SIGKILL-based test relaunches during a debugging session made it look like
+  /// playback position/history weren't being saved at all -- SIGKILL can never be caught by any
+  /// app, so this is a mitigation for that case, not a fix for it (nothing can "fix" SIGKILL).
+  /// Started once per file in fileStarted(), invalidated in stop(). Note the 1s interval means this
+  /// does a real disk write (the watch-later config, plus the full history plist) every second
+  /// while anything is playing -- fine for personal daily use, but worth knowing if this is ever
+  /// reused somewhere disk wear/battery impact would matter more.
+  private var periodicPlaybackStateSaveTimer: Timer?
+
   var displayOSD: Bool = true
 
   var isInMiniPlayer = false
@@ -949,6 +961,8 @@ class PlayerCore: NSObject {
   ///     running when the mpv core is shutdown it may call into mpv triggering a crash.
   func stop() {
     guard info.state != .shutDown else { return }
+    periodicPlaybackStateSaveTimer?.invalidate()
+    periodicPlaybackStateSaveTimer = nil
     savePlaybackPosition()
 
     // The player may already be stopped in which case the state must not be set to stopping.
@@ -2019,6 +2033,25 @@ class PlayerCore: NSObject {
     }
   }
 
+  /// Adds (or, for a file already in history, refreshes) the currently-playing file's entry.
+  /// `HistoryController.add` re-inserts at the front and dedupes by `mpvMd5`, so calling this again
+  /// for the same file it was already called for (e.g. from periodicPlaybackStateSaveTimer) is safe
+  /// and just keeps the entry's duration/title current rather than creating a duplicate.
+  func addCurrentFileToHistory() {
+    guard let url = info.currentURL else { return }
+    let duration = info.videoDuration ?? .zero
+    let mediaTitle = mpv.getString(MPVProperty.mediaTitle)
+    // Unfortunately the mpv media-title property returns the filename when there isn't a title.
+    // Don't store a title unless the media actually has one.
+    let titleToUse: String? = {
+      guard let mediaTitle else { return nil }
+      guard mediaTitle != url.lastPathComponent else { return nil }
+      return mediaTitle
+    }()
+    HistoryController.shared.add(url, duration: duration.second, title: titleToUse,
+                                 ignorePathInWatchLaterConfig)
+  }
+
   func getGeometry() -> GeometryDef? {
     let geometry = mpv.getString(MPVOption.Window.geometry) ?? ""
     return GeometryDef.parse(geometry)
@@ -2076,6 +2109,14 @@ class PlayerCore: NSObject {
   func fileStarted(path: String) {
     guard info.state.active else { return }
     log("File started")
+
+    // One fresh timer per file -- invalidate any previous one first rather than assuming stop()
+    // already did (e.g. switching directly to a new playlist entry without an intervening stop).
+    periodicPlaybackStateSaveTimer?.invalidate()
+    periodicPlaybackStateSaveTimer = Timer.scheduledTimerInCommonMode(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      self?.savePlaybackPosition()
+      self?.addCurrentFileToHistory()
+    }
 
     Task { @MainActor in
       mainWindow.liveText.clearAnalysis()
@@ -2225,19 +2266,8 @@ class PlayerCore: NSObject {
       miniPlayer.handleVideoSizeChange()
     }
 
-    // add to history
+    addCurrentFileToHistory()
     if let url = info.currentURL {
-      let duration = info.videoDuration ?? .zero
-      let mediaTitle = mpv.getString(MPVProperty.mediaTitle)
-      // Unfortunately the mpv media-title property returns the filename when there isn't a title.
-      // Don't store a title unless the media actually has one.
-      let titleToUse: String? = {
-        guard let mediaTitle else { return nil }
-        guard mediaTitle != url.lastPathComponent else { return nil }
-        return mediaTitle
-      }()
-      HistoryController.shared.add(url, duration: duration.second, title: titleToUse,
-                                   ignorePathInWatchLaterConfig)
       if Preference.bool(for: .recordRecentFiles) && Preference.bool(for: .trackAllFilesInRecentOpenMenu) {
         AppDelegate.shared.noteNewRecentDocumentURL(url)
       }
