@@ -17,6 +17,10 @@ class OSCFloatingView: TranslucentView {
   weak var mainWindow: MainWindowController!
   private let prefObserver = Preference.Observer()
 
+  /// Confirmed directly at the user's own request: holds just the toolbar buttons (PIP,
+  /// trash-after-finish, etc.), on its own row above oscTopView, instead of sharing oscTopView's
+  /// row with the volume/playback controls.
+  var oscToolbarRowView: NSStackView!
   var oscTopView: NSStackView!
   var oscBottomView: TimeLabelOverflowedStackView!
 
@@ -39,10 +43,16 @@ class OSCFloatingView: TranslucentView {
     let cornerRadius: CGFloat = if #available(macOS 26.0, *) { 12 } else { 6 }
     super.init(liquidGlassCornerRadius: cornerRadius, vevCornerRadius: cornerRadius, padding: (0, 0))
 
+    self.oscToolbarRowView = NSStackView()
+    oscToolbarRowView.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(oscToolbarRowView)
+    oscToolbarRowView.padding(.top(.oscPaddingTop), .horizontal(12))
+
     self.oscTopView = NSStackView()
     oscTopView.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(oscTopView)
-    oscTopView.padding(.top(.oscPaddingTop), .horizontal(12))
+    oscTopView.padding(.horizontal(12))
+      .spacing(.top(8), to: oscToolbarRowView)
 
     self.oscBottomView = TimeLabelOverflowedStackView()
     oscBottomView.translatesAutoresizingMaskIntoConstraints = false

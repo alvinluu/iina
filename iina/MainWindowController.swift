@@ -905,7 +905,7 @@ class MainWindowController: PlayerWindowController {
     oscFloatingView.isDragging = false
 
     // detach all fragment views
-    [oscFloatingView.oscTopView, titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
+    [oscFloatingView.oscToolbarRowView, oscFloatingView.oscTopView, titleBarView.oscView, oscBottomView.oscView].forEach { stackView in
       stackView!.views.forEach {
         stackView!.removeView($0)
       }
@@ -932,15 +932,18 @@ class MainWindowController: PlayerWindowController {
       fragControlView.setVisibilityPriority(.detachOnlyIfNecessary, for: fragControlViewLeftView)
       fragControlView.setVisibilityPriority(.detachOnlyIfNecessary, for: fragControlViewRightView)
       oscFloatingView.oscTopView.addView(fragVolumeView, in: .leading)
-      oscFloatingView.oscTopView.addView(fragToolbarView, in: .trailing)
       oscFloatingView.oscTopView.addView(fragControlView, in: .center)
+      // On its own row above oscTopView, confirmed directly at the user's own request, instead of
+      // sharing oscTopView's row with the volume/playback controls.
+      oscFloatingView.oscToolbarRowView.addView(fragToolbarView, in: .trailing)
 
       // Setting the visibility priority to detach only will cause freeze when resizing the window
       // (and triggering the detach) in macOS 11.
       if !isMacOS11 {
         oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: fragVolumeView)
-        oscFloatingView.oscTopView.setVisibilityPriority(.mustHold, for: fragToolbarView)
+        oscFloatingView.oscToolbarRowView.setVisibilityPriority(.mustHold, for: fragToolbarView)
         oscFloatingView.oscTopView.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        oscFloatingView.oscToolbarRowView.setClippingResistancePriority(.defaultLow, for: .horizontal)
       }
       oscFloatingView.oscBottomView.addSubview(fragSliderView)
       Utility.quickConstraints(["H:|[v]|", "V:|[v]|"], ["v": fragSliderView])
@@ -2042,7 +2045,11 @@ class MainWindowController: PlayerWindowController {
     osdView.center(.x, with: targetView)
 
     newWindow.setFrame(priorFrame, display: false)
-    newWindow.makeKeyAndOrderFront(nil)
+    // showWindow(_:), not a plain makeKeyAndOrderFront -- the override sets up cv's mouse-tracking
+    // area (needed for the OSC to respond to mouse movement/interaction at all), among other
+    // one-time-per-window setup. Confirmed directly via a live user report: without it, the OSC
+    // never appeared in this fresh window no matter how the user interacted with it.
+    self.showWindow(nil)
     oldWindow.orderOut(nil)
 
     if let restorePosition = oscPositionToRestoreAfterDetachedFullScreen {
@@ -2165,17 +2172,18 @@ class MainWindowController: PlayerWindowController {
                     - margin) < 0
 
       let views = oscFloatingView.oscTopView.views
+      let toolbarRowViews = oscFloatingView.oscToolbarRowView.views
       if hide {
         if views.contains(fragVolumeView)
-            && views.contains(fragToolbarView) {
+            && toolbarRowViews.contains(fragToolbarView) {
           oscFloatingView.oscTopView.removeView(fragVolumeView)
-          oscFloatingView.oscTopView.removeView(fragToolbarView)
+          oscFloatingView.oscToolbarRowView.removeView(fragToolbarView)
         }
       } else {
         if !views.contains(fragVolumeView)
-            && !views.contains(fragToolbarView) {
+            && !toolbarRowViews.contains(fragToolbarView) {
           oscFloatingView.oscTopView.addView(fragVolumeView, in: .leading)
-          oscFloatingView.oscTopView.addView(fragToolbarView, in: .trailing)
+          oscFloatingView.oscToolbarRowView.addView(fragToolbarView, in: .trailing)
         }
       }
     }
