@@ -1866,6 +1866,11 @@ class MainWindowController: PlayerWindowController {
   /// `.top`), so it can be restored on exit -- `.top` OSC lives inside titleBarView, which isn't
   /// moved into the full-screen window at all.
   private var oscPositionToRestoreAfterDetachedFullScreen: Preference.OSCPosition?
+  /// Set once a fresh `newWindow` (see exitDetachedFullScreen) becomes current -- that window never
+  /// gets `NSWindow.aspectRatio` set (see the doc comment where it's created for why), so it needs
+  /// `windowWillResize` to enforce the same "preserve the video's aspect ratio during a live drag"
+  /// behavior manually instead of relying on AppKit's own native mechanism for it.
+  private var windowNeedsManualAspectRatioLock = false
 
   private func enterDetachedFullScreen() {
     guard let mainWindow = self.window, windowedModeWindow == nil, !player.isInMiniPlayer else { return }
@@ -1977,8 +1982,9 @@ class MainWindowController: PlayerWindowController {
     // NSApp.presentationOptions changes and AppKit re-adjusts every window's frame for the screen.
     // Root cause not fully understood beyond that isolation -- possibly a degenerate aspect-ratio-
     // preserving frame computation when the visible screen frame changes out from under a window
-    // with .aspectRatio set. Window still resizes and behaves normally without it; aspect-ratio
-    // locking during a live drag just isn't enforced on this particular window.
+    // with .aspectRatio set. windowWillResize enforces the same behavior manually instead (see
+    // windowNeedsManualAspectRatioLock's own doc comment).
+    windowNeedsManualAspectRatioLock = true
 
     guard let targetView = newWindow.contentView else {
       log("exitDetachedFullScreen: new window has no contentView, aborting", level: .error)
@@ -2096,9 +2102,39 @@ class MainWindowController: PlayerWindowController {
     if !window.inLiveResize {
       liveText.clearAnalysis()
     }
-    if frameSize.height <= AppData.mainWindowMinSize.height || frameSize.width <= AppData.mainWindowMinSize.width {
-      return currentWindowAspectRatio.grow(toSize: AppData.mainWindowMinSize)
+
+    // Normally AppKit's own native window.aspectRatio has already constrained frameSize to the
+    // correct aspect before this delegate method ever sees it -- windowNeedsManualAspectRatioLock
+    // is only set for a detached-full-screen exit's fresh `newWindow`, which never gets
+    // window.aspectRatio set at all (see where it's created for why), so that never happens for it.
+    // Enforce the same "preserve the video's aspect ratio during a live drag" behavior manually here
+    // instead for that one case, without ever touching the native property.
+    var effectiveAspectRatio = currentWindowAspectRatio
+    if windowNeedsManualAspectRatioLock && !Preference.unlockWindowAspectRatio {
+      let (videoWidth, videoHeight) = player.videoSizeForDisplay
+      if videoWidth > 0 && videoHeight > 0 {
+        effectiveAspectRatio = NSSize(width: videoWidth, height: videoHeight)
+      }
     }
+
+    if frameSize.height <= AppData.mainWindowMinSize.height || frameSize.width <= AppData.mainWindowMinSize.width {
+      return effectiveAspectRatio.grow(toSize: AppData.mainWindowMinSize)
+    }
+
+    if windowNeedsManualAspectRatioLock && !Preference.unlockWindowAspectRatio && effectiveAspectRatio.width > 0 && effectiveAspectRatio.height > 0 {
+      let aspect = effectiveAspectRatio.width / effectiveAspectRatio.height
+      let currentSize = window.frame.size
+      let widthChanged = abs(frameSize.width - currentSize.width) > 0.5
+      let heightChanged = abs(frameSize.height - currentSize.height) > 0.5
+      if heightChanged && !widthChanged {
+        // Only the height edge is being dragged -- derive width from it.
+        return NSSize(width: frameSize.height * aspect, height: frameSize.height)
+      } else {
+        // Width edge, or a corner (both changed) -- derive height from width either way.
+        return NSSize(width: frameSize.width, height: frameSize.width / aspect)
+      }
+    }
+
     return frameSize
   }
 
