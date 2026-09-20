@@ -38,6 +38,7 @@ Changes on top of stock IINA:
   - "Stay on top" is remembered across restarts.
 - **Picture-in-Picture**: fixed the main window popping back up when switching to another video while PiP was active.
 - **Shutdown**: `kill`/`pkill` (SIGTERM/SIGINT) now trigger IINA's normal graceful quit sequence instead of an instant process kill, so mpv's save-position-on-quit and other shutdown cleanup actually get a chance to run.
+- **Full screen**: added an opt-in "detached full screen" mode (`useDetachedFullScreen`, not yet exposed as a Settings checkbox — enable with `defaults write com.colliderli.nina useDetachedFullScreen -bool true`) that works around a macOS/AppKit bug where a window's frame gets permanently stuck after *any* full-screen-style transition, native or IINA's own "legacy" full screen — most visibly, a portrait video showing black bars after resizing post-fullscreen. Full screen is presented in a disposable window instead of transitioning the main window in place, and neither window is ever reused across a windowed↔full-screen transition (a fresh one is created and the old one discarded every time), since even a single such transition is enough to trigger the bug. Off by default, so stock full-screen behavior is unaffected unless explicitly enabled.
 
 Building this fork follows the same steps as upstream IINA below; the resulting app is named `Nina.app`.
 
