@@ -1589,7 +1589,13 @@ class MainWindowController: PlayerWindowController {
     fadeableViews.update()
     showUI()
 
-    if player.info.state == .playing {
+    // Gating this on play state only makes sense for the automatic "float on top while playing"
+    // feature (alwaysFloatOnTop) -- a paused video should still un-skip restoring the user's own
+    // sticky manual on-top preference (isOntop, persisted as rememberedStayOnTop), which isn't
+    // play/pause-tied at all. See isOntop's own didSet comment for the same distinction. Without
+    // this, a user with alwaysFloatOnTop off would silently lose "stay on top" every time they
+    // happened to exit full screen while paused.
+    if player.info.state == .playing || !Preference.bool(for: .alwaysFloatOnTop) {
       setWindowFloatingOnTop(isOntop, updateOnTopStatus: false)
     }
 
@@ -1707,7 +1713,16 @@ class MainWindowController: PlayerWindowController {
     }
 
     // restore ontop status
-    if player.info.state == .playing {
+    // Gating this on play state only makes sense for the automatic "float on top while playing"
+    // feature (alwaysFloatOnTop) -- a paused video should still restore the user's own sticky
+    // manual on-top preference (isOntop, persisted as rememberedStayOnTop), which isn't play/pause-
+    // tied at all. See isOntop's own didSet comment for the same distinction, and this exact case is
+    // a confirmed user report: "always on top" going missing "sometimes" after exiting full screen
+    // turned out to depend on whether playback happened to be paused at that moment. This especially
+    // matters for detached full screen (useDetachedFullScreen), whose exit creates a brand-new
+    // window that starts at the OS default .normal level -- unlike native/legacy full screen, there
+    // is no other code path that could coincidentally leave the level already correct.
+    if player.info.state == .playing || !Preference.bool(for: .alwaysFloatOnTop) {
       setWindowFloatingOnTop(isOntop, updateOnTopStatus: false)
     }
 
@@ -2071,6 +2086,19 @@ class MainWindowController: PlayerWindowController {
     case .top:
       break
     }
+
+    // titleBarView never moved during enterDetachedFullScreen (it stays behind on oldWindow, which
+    // is about to be closed) -- reparent it into newWindow the same way videoViewContainer/OSC are
+    // above. windowWillExitFullScreen already called titleBarView.update(...) once, but too early
+    // (titleBarView was still on oldWindow at that point, so its internal vertical constraint bound
+    // to the wrong superview) -- call it again now that the superview is actually newWindow. Missing
+    // this reparent entirely is exactly what a user report caught: the custom titlebar (and its
+    // accessory buttons, e.g. the on-top pin icon) simply never appeared again after the first
+    // detached-full-screen exit.
+    titleBarView.removeFromSuperview()
+    targetView.addSubview(titleBarView)
+    titleBarView.padding(.horizontal)
+    titleBarView.update(hasOSC: oscPosition == .top, inFullScreen: false)
 
     // Can't restore osdView's ORIGINAL windowed-mode constraints here (relative to titleBarView/the
     // leading sidebar) -- neither ever moves into newWindow (only video + OSC + OSD do, per this
