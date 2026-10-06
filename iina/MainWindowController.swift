@@ -3490,14 +3490,30 @@ class MainWindowController: PlayerWindowController {
       alert.addButton(withTitle: NSLocalizedString("general.no", comment: "No"))
       alert.addButton(withTitle: NSLocalizedString("general.cancel", comment: "Cancel"))
       alert.beginSheetModal(for: window) { [weak self] response in
+        guard let self else { return }
+        // "Next" here means specifically looping back to the first entry when there's nothing
+        // after the current one -- requested directly by the user, since mpv's own playlist-next/
+        // playlist-remove commands just stop at the end of the playlist instead of wrapping,
+        // regardless of the general "loop playlist" setting (which this deliberately doesn't touch,
+        // so it doesn't change behavior for any other next/previous shortcut).
+        let playlist = self.player.info.playlist
+        let currentIndex = self.player.mpv.getInt(MPVProperty.playlistPos)
+        let isLastItem = playlist.count > 1 && currentIndex == playlist.count - 1
         switch response {
         case .alertFirstButtonReturn:
           // Yes: mpv's playlist-remove auto-advances to the next item when the removed entry is
-          // the one currently playing, so trashCurrentFile() alone accomplishes "delete and next."
-          self?.player.trashCurrentFile()
+          // the one currently playing, so trashCurrentFile() alone accomplishes "delete and next" --
+          // except when the removed entry was the last one, which it can't advance into.
+          if self.player.trashCurrentFile(), isLastItem {
+            self.player.playFileInPlaylist(0)
+          }
         case .alertSecondButtonReturn:
           // No: keep the file, but still move on to the next item.
-          self?.player.navigateInPlaylist(nextMedia: true)
+          if isLastItem {
+            self.player.playFileInPlaylist(0)
+          } else {
+            self.player.navigateInPlaylist(nextMedia: true)
+          }
         default:
           // Cancel: do nothing.
           break
