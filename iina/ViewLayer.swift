@@ -458,7 +458,7 @@ class ViewLayer: CAOpenGLLayer {
     var ctx: CGLContextObj?
     CGLCreateContext(pixelFormat, nil, &ctx)
 
-    guard let ctx = ctx else {
+    guard let ctx else {
       Logger.fatal("Cannot create OpenGL context!")
     }
 
@@ -475,6 +475,7 @@ class ViewLayer: CAOpenGLLayer {
 
   // MARK: - ICC Profile
 
+#if USE_ICC_PROFILE_AUTO // See VideoView.setICCProfile.
   /// Set an ICC profile for use with the mpv [icc-profile-auto](https://mpv.io/manual/stable/#options-icc-profile-auto)
   /// option.
   ///
@@ -510,6 +511,7 @@ class ViewLayer: CAOpenGLLayer {
       }
     }
   }
+#endif // USE_ICC_PROFILE_AUTO
 
   // MARK: - Utils
 
