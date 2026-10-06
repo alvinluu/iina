@@ -846,7 +846,10 @@ struct Preference {
       case .videoSize10: 1
       case .videoSize15: 1.5
       case .videoSize20: 2
-      case .rememberLast: Preference.double(for: .rememberedWindowScale)
+      case .rememberLast:
+        // Guard against a previously-corrupted (inf/NaN/non-positive) stored value, which would
+        // produce a NaN window frame and crash AppKit.
+        Preference.double(for: .rememberedWindowScale).sanitizedWindowScale
       }
     }
 
@@ -1768,4 +1771,8 @@ extension Preference {
       block(key)
     }
   }
+}
+
+private extension Double {
+  var sanitizedWindowScale: Double { isFinite && self > 0 ? self : 1 }
 }

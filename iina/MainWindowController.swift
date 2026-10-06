@@ -3028,11 +3028,15 @@ class MainWindowController: PlayerWindowController {
 
   func updateWindowParametersForMPV(withFrame frame: NSRect? = nil) {
     guard let window else { return }
-    if let videoWidth = player.info.videoWidth {
+    // videoWidth can be 0 transiently while switching files; dividing by it produced an `inf`
+    // that got persisted as rememberedWindowScale and later crashed AppKit with a NaN frame.
+    if let videoWidth = player.info.videoWidth, videoWidth > 0 {
       let windowScale = Double((frame ?? window.frame).width) / Double(videoWidth)
-      player.info.cachedWindowScale = windowScale
-      player.mpv.setDouble(MPVOption.Window.windowScale, windowScale, level: .verbose)
-      Preference.set(windowScale, for: .rememberedWindowScale)
+      if windowScale.isFinite && windowScale > 0 {
+        player.info.cachedWindowScale = windowScale
+        player.mpv.setDouble(MPVOption.Window.windowScale, windowScale, level: .verbose)
+        Preference.set(windowScale, for: .rememberedWindowScale)
+      }
     }
     // For a single discrete resize (as opposed to a live drag, which fires windowDidResize
     // continuously and self-corrects), windowDidResize may run before Auto Layout has fully
@@ -3496,9 +3500,10 @@ class MainWindowController: PlayerWindowController {
         // playlist-remove commands just stop at the end of the playlist instead of wrapping,
         // regardless of the general "loop playlist" setting (which this deliberately doesn't touch,
         // so it doesn't change behavior for any other next/previous shortcut).
-        let playlist = self.player.info.playlist
+        // Ask mpv directly rather than trusting the cached info.playlist, which can lag behind.
+        let playlistCount = self.player.mpv.getInt(MPVProperty.playlistCount)
         let currentIndex = self.player.mpv.getInt(MPVProperty.playlistPos)
-        let isLastItem = playlist.count > 1 && currentIndex == playlist.count - 1
+        let isLastItem = playlistCount > 1 && currentIndex == playlistCount - 1
         switch response {
         case .alertFirstButtonReturn:
           // Yes: mpv's playlist-remove auto-advances to the next item when the removed entry is
