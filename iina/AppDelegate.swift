@@ -462,6 +462,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     AppDelegate.shared.menuController?.updatePluginMenu()
 
     MemoryUsage.shared.logUsage("after launching finished")
+
+    // Begin watching the process footprint so it can be kept under the configured cap.
+    MemoryPruner.shared.start()
   }
 
   /** Show welcome window if `application(_:openFile:)` wasn't called, i.e. launched normally. */
@@ -990,6 +993,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
   @IBAction func menuNewWindow(_ sender: Any) {
     PlayerCore.newPlayerCore.initialWindow.showWindow(nil)
+  }
+
+  @IBAction func menuFreeUpMemory(_ sender: Any) {
+    MemoryPruner.shared.pruneNow(full: true, reason: "menu command")
   }
 
   @IBAction func menuOpenScreenshotFolder(_ sender: NSMenuItem) {

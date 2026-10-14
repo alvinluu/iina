@@ -247,6 +247,16 @@ class MenuController: NSObject, NSMenuDelegate {
     pause.action = #selector(MainMenuActionHandler.menuTogglePause(_:))
     stop.action = #selector(MainMenuActionHandler.menuStop(_:))
 
+    // -- free up memory (added programmatically; frees in-RAM caches and shrinks the mpv cache)
+    let freeUpMemory = NSMenuItem(title: NSLocalizedString("Free Up Memory", comment: "Free Up Memory menu item"),
+                                  action: #selector(AppDelegate.menuFreeUpMemory(_:)), keyEquivalent: "")
+    freeUpMemory.target = AppDelegate.shared
+    if let stopIndex = playbackMenu.items.firstIndex(of: stop) {
+      playbackMenu.insertItem(freeUpMemory, at: stopIndex + 1)
+    } else {
+      playbackMenu.addItem(freeUpMemory)
+    }
+
     // -- seeking
     forward.action = #selector(MainMenuActionHandler.menuStep(_:))
     nextFrame.action = #selector(MainMenuActionHandler.menuStepFrame(_:))

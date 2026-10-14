@@ -256,6 +256,14 @@ class PlaybackInfo {
 
   func getMatchedSubs(_ file: String) -> [URL]? { $matchedSubs.withLock { $0[file] } }
 
+  /// Drops transient per-session caches to reclaim memory. Everything cleared here is rebuilt
+  /// lazily on next access, so this is safe to call at any time (used by `MemoryPruner`).
+  func clearTransientCaches() {
+    cachedVideoDurationAndProgress.removeAll()
+    cachedMetadata.removeAll()
+    $matchedSubs.withLock { $0.removeAll() }
+  }
+
   var currentSubsInfo: [FileInfo] = []
   var currentVideosInfo: [FileInfo] = []
 

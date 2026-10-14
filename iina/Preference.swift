@@ -274,6 +274,13 @@ struct Preference {
     static let cachePauseInitial = Key("cachePauseInitial")
     static let cachePauseWait = Key("cachePauseWait")
     static let secPrefech = Key("secPrefech")
+
+    /// Automatically free memory (prune in-RAM caches and shrink the mpv demuxer cache) when the
+    /// process footprint exceeds `memoryPruneThresholdMB`.
+    static let pruneMemoryAutomatically = Key("pruneMemoryAutomatically")
+    /// Footprint, in megabytes, above which automatic pruning kicks in. See `pruneMemoryAutomatically`.
+    static let memoryPruneThresholdMB = Key("memoryPruneThresholdMB")
+
     static let showBufferingThrobber = Key("showBufferingThrobber")
     static let showSeekingThrobber = Key("showSeekingThrobber")
     static let userAgent = Key("userAgent")
@@ -1242,10 +1249,12 @@ struct Preference {
     .autoSearchThreshold: 20,
 
     .enableCache: true,
-    .defaultCacheSize: 153600,
+    .defaultCacheSize: 102400,
     .cachePauseInitial: false,
     .cachePauseWait: Float(1),
-    .secPrefech: 36000,
+    .secPrefech: 3600,
+    .pruneMemoryAutomatically: true,
+    .memoryPruneThresholdMB: 1024,
     .showBufferingThrobber: true,
     .showSeekingThrobber: true,
     .userAgent: "",

@@ -67,6 +67,15 @@ class MemoryUsage {
 
   // MARK: - Public Functions
 
+  /// Current memory footprint of the IINA process in bytes, or `nil` if it could not be obtained.
+  ///
+  /// This is the same `phys_footprint` value `logUsage` reports, exposed so other components (e.g.
+  /// `MemoryPruner`) can make decisions based on the live footprint.
+  var footprintBytes: Int? {
+    guard let physFootprint else { return nil }
+    return Int(physFootprint)
+  }
+
 #if DEBUG
   /// Log  current memory usage.
   ///
