@@ -102,6 +102,29 @@ class TranslucentView: NSView {
     content!.padding(.horizontal(padding.0), .vertical(padding.1))
   }
 
+  /// Works around an intermittent macOS 26 bug where AppKit state (frames, alpha, images) is
+  /// completely correct but the on-screen contents of an `NSGlassEffectView`'s contentView stop
+  /// being composited -- observed with the floating OSC's toolbar buttons after loading a new
+  /// video. Marking the child views (or this outer view) as needing display does not reliably
+  /// recover it; re-asserting `contentView` on the glass view itself forces its content layers to
+  /// be rebuilt and does.
+  func forceContentRefresh() {
+    guard let container else {
+      needsDisplay = true
+      return
+    }
+    container.needsLayout = true
+    container.needsDisplay = true
+    if #available(macOS 26.0, *), let glass = container as? NSGlassEffectView {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      let wrapper = glass.contentView
+      glass.contentView = nil
+      glass.contentView = wrapper
+      CATransaction.commit()
+    }
+  }
+
   func setCornerRadius(liquidGlass: CGFloat, vev: CGFloat) {
     liquidGlassCornerRadius = liquidGlass
     vevCornerRadius = vev

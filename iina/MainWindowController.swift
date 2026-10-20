@@ -94,6 +94,7 @@ class MainWindowController: PlayerWindowController {
 
   var oscVolumeView: NSView!
   var oscToolbarView: NSStackView!
+  private var oscToolbarWidthConstraint: NSLayoutConstraint!
   var oscSliderView: NSView!
 
   var osdView: OSDView!
@@ -602,6 +603,12 @@ class MainWindowController: PlayerWindowController {
     oscToolbarView.alignment = .centerY
     oscToolbarView.spacing = 0
     oscToolbarView.size(height: 24)
+    // Fixed width (set in setupOSCToolbarButtons) so this stack can't stretch to its row's width.
+    // When it did, its buttons were laid out at the far end of the stretched stack; after the next
+    // video resized the window it shrank back without re-laying out its children, leaving the
+    // buttons outside its bounds (clipped, invisible).
+    oscToolbarWidthConstraint = oscToolbarView.widthAnchor.constraint(equalToConstant: 0)
+    oscToolbarWidthConstraint.isActive = true
 
     self.oscSliderView = TimeLabelOverflowedView()
     [leftLabel, rightLabel].forEach { label in
@@ -965,6 +972,8 @@ class MainWindowController: PlayerWindowController {
       button.action = #selector(self.toolBarButtonAction(_:))
       oscToolbarView.addView(button, in: .trailing)
     }
+    oscToolbarWidthConstraint.constant = CGFloat(effectiveButtons.count) * Preference.ToolBarButton.frameSize
+    oscToolbarView.needsLayout = true
 
 //    let menuButton = NSButton()
 //    menuButton.bezelStyle = .regularSquare
@@ -3013,6 +3022,13 @@ class MainWindowController: PlayerWindowController {
         window.setFrame(rect, display: true)
       }
       updateWindowParametersForMPV(withFrame: rect)
+    }
+
+    // On macOS 26 the floating OSC's glass content (toolbar buttons) can stop being composited
+    // after a new video resizes the window even though every view's state is correct; re-asserting
+    // the glass view's contentView recovers it (see TranslucentView.forceContentRefresh).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      self?.oscFloatingView?.forceContentRefresh()
     }
 
     // generate thumbnails after video loaded if it's the first time
