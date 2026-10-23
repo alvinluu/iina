@@ -3825,6 +3825,7 @@ extension MainWindowController {
       let panel = translucentPanel ?? TranslucentControlPanel(controller: self)
       translucentPanel = panel
       panel.sync(opacity: opacity, isOn: true)
+      panel.setPaused(player.mpv.getFlag(MPVOption.PlaybackControl.pause))
       window.addChildWindow(panel, ordered: .above)
       repositionTranslucentPanel()
       panel.orderFront(nil)
@@ -3838,6 +3839,10 @@ extension MainWindowController {
       translucentPanel = nil
     }
     titleBarView?.updateTranslucency(isOn: on, opacity: opacity)
+  }
+
+  func syncTranslucentPanelPlayState(paused: Bool) {
+    translucentPanel?.setPaused(paused)
   }
 
   func repositionTranslucentPanel() {
@@ -3864,12 +3869,19 @@ extension MainWindowController {
 final class TranslucentControlPanel: NSPanel {
   private let slider: NSSlider
   private let toggle: NSButton
+  private let playPause: NSButton
 
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
 
   init(controller: MainWindowController) {
     let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+    playPause = NSButton(image: NSImage(named: "pause") ?? NSImage(), target: controller,
+                         action: #selector(MainWindowController.playButtonAction(_:)))
+    playPause.isBordered = false
+    playPause.bezelStyle = .smallSquare
+    playPause.imageScaling = .scaleProportionallyDown
+    playPause.toolTip = "Play/Pause"
     let dragButton = TranslucentDragButton(image: .sf("drop.fill", withConfiguration: config)!, target: controller,
                                            action: #selector(MainWindowController.toggleTranslucentMode))
     dragButton.windowToMove = { [weak controller] in controller?.window }
@@ -3882,7 +3894,7 @@ final class TranslucentControlPanel: NSPanel {
     slider.controlSize = .small
     slider.isContinuous = true
 
-    let size = NSSize(width: 124, height: 26)
+    let size = NSSize(width: 160, height: 26)
     super.init(contentRect: NSRect(origin: .zero, size: size),
                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     isOpaque = false
@@ -3901,7 +3913,7 @@ final class TranslucentControlPanel: NSPanel {
     background.layer?.cornerRadius = 8
     background.layer?.masksToBounds = true
 
-    let stack = NSStackView(views: [slider, toggle])
+    let stack = NSStackView(views: [playPause, slider, toggle])
     stack.orientation = .horizontal
     stack.spacing = 8
     stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
@@ -3909,8 +3921,14 @@ final class TranslucentControlPanel: NSPanel {
     stack.autoresizingMask = [.width, .height]
     slider.widthAnchor.constraint(equalToConstant: 70).isActive = true
     toggle.widthAnchor.constraint(equalToConstant: 20).isActive = true
+    playPause.widthAnchor.constraint(equalToConstant: 18).isActive = true
+    playPause.heightAnchor.constraint(equalToConstant: 18).isActive = true
     background.addSubview(stack)
     contentView = background
+  }
+
+  func setPaused(_ paused: Bool) {
+    playPause.image = NSImage(named: paused ? "play" : "pause")
   }
 
   func sync(opacity: Double, isOn: Bool) {

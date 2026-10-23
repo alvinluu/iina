@@ -655,6 +655,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   func updatePlayButtonState(paused: Bool) {
     guard loaded else { return }
     playButton.image = NSImage(named: paused ? "play" : "pause")
+    (self as? MainWindowController)?.syncTranslucentPanelPlayState(paused: paused)
   }
 
   /** This method will not set `isOntop`! */
