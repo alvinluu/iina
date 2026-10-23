@@ -775,6 +775,7 @@ class MainWindowController: PlayerWindowController {
         blackOutOtherMonitors()
       }
       videoView.updateDisplayLink()
+      repositionTranslucentPanel()
       // In normal full screen mode AppKit will automatically adjust the window frame if the window
       // is moved to a new screen such as when the window is on an external display and that display
       // is disconnected. In legacy full screen mode IINA is responsible for adjusting the window's
@@ -1524,6 +1525,7 @@ class MainWindowController: PlayerWindowController {
     // whole method a second time for a window that was never the active one. Only act on the
     // window that's actually current.
     guard notification.object as? NSWindow === window else { return }
+    setTranslucentMode(false)
     shouldApplyInitialWindowSize = true
     // Close PIP
     if pipStatus == .inPIP {
@@ -1593,6 +1595,8 @@ class MainWindowController: PlayerWindowController {
   ///     [willEnterFullScreenNotification](https://developer.apple.com/documentation/appkit/nswindow/willenterfullscreennotification).
   func windowWillEnterFullScreen(_ notification: Notification) {
     log("Entering full screen mode")
+    // The click-through window and its control panel don't carry over to a full-screen window.
+    setTranslucentMode(false)
     // Don't let a width we trusted from before this full-screen cycle bleed into the anchor math
     // after returning -- see the KNOWN ISSUE comment above setWindowScale.
     lastAppliedWindowScaleFrame = nil
@@ -2360,6 +2364,7 @@ class MainWindowController: PlayerWindowController {
   func windowDidResize(_ notification: Notification) {
     guard loaded, let window else { return }
     correctDetachedFullScreenFrameIfNeeded()
+    repositionTranslucentPanel()
     if !window.inLiveResize {
       liveText.requestAnalysis()
     }
@@ -2436,6 +2441,7 @@ class MainWindowController: PlayerWindowController {
   func windowDidMove(_ notification: Notification) {
     guard loaded, let window else { return }
     correctDetachedFullScreenFrameIfNeeded()
+    repositionTranslucentPanel()
     player.events.emit(.windowMoved, data: window.frame)
   }
 
@@ -3021,7 +3027,9 @@ class MainWindowController: PlayerWindowController {
         window.setFrame(rect, display: true, animate: true)
         window.setFrame(rect, display: true)
       }
-      updateWindowParametersForMPV(withFrame: rect)
+      // The remembered scale must survive auto-sizing for a new file (it is what produced this
+      // size); only keep it in sync for resizes that weren't driven by it.
+      updateWindowParametersForMPV(withFrame: rect, persistScale: !player.info.justStartedFile)
     }
 
     // On macOS 26 the floating OSC's glass content (toolbar buttons) can stop being composited
@@ -3042,7 +3050,12 @@ class MainWindowController: PlayerWindowController {
     player.events.emit(.windowSizeAdjusted, data: rect)
   }
 
-  func updateWindowParametersForMPV(withFrame frame: NSRect? = nil) {
+  /// - Parameter persistScale: Whether to also save the resulting scale as `rememberedWindowScale`.
+  ///   It is only ever saved from a windowed, user-driven size: saving the scale of a full-screen
+  ///   frame, or of a frame auto-sized for a newly started file (which may have been clamped to
+  ///   the screen and may belong to a different orientation than the previous video), made the
+  ///   remembered scale compound from video to video (e.g. 0.79 -> 5.7 -> 3.2).
+  func updateWindowParametersForMPV(withFrame frame: NSRect? = nil, persistScale: Bool = true) {
     guard let window else { return }
     // videoWidth can be 0 transiently while switching files; dividing by it produced an `inf`
     // that got persisted as rememberedWindowScale and later crashed AppKit with a NaN frame.
@@ -3051,7 +3064,9 @@ class MainWindowController: PlayerWindowController {
       if windowScale.isFinite && windowScale > 0 {
         player.info.cachedWindowScale = windowScale
         player.mpv.setDouble(MPVOption.Window.windowScale, windowScale, level: .verbose)
-        Preference.set(windowScale, for: .rememberedWindowScale)
+        if persistScale && fsState == .windowed {
+          Preference.set(windowScale, for: .rememberedWindowScale)
+        }
       }
     }
     // For a single discrete resize (as opposed to a live drag, which fires windowDidResize
@@ -3069,6 +3084,12 @@ class MainWindowController: PlayerWindowController {
   /// comment below. Reset on full-screen entry so a width trusted from before the cycle can't leak
   /// into the anchor math after returning.
   private var lastAppliedWindowScaleFrame: NSRect?
+
+  // MARK: - Translucent click-through mode
+
+  static let minTranslucentOpacity = 0.15
+  private(set) var isTranslucentMode = false
+  private var translucentPanel: TranslucentControlPanel?
 
   // KNOWN ISSUE (unfixed, believed to be an AppKit bug, not ours): after this window has entered
   // and exited full screen at least once (native `toggleFullScreen` or our own "legacy" full
@@ -3769,5 +3790,182 @@ extension MainWindowController: PIPViewControllerDelegate {
       state.contentDuration = duration
       state.setPlaybackRate(playing ? player.info.playSpeed : 0, elapsedTime: elapsed, timeControlStatus: playing ? 2 : 0)
     }
+  }
+}
+
+
+// MARK: - Translucent click-through mode
+
+extension MainWindowController {
+  @objc func toggleTranslucentMode() {
+    setTranslucentMode(!isTranslucentMode)
+  }
+
+  @objc func opacitySliderChanged(_ sender: NSSlider) {
+    guard isTranslucentMode else { return }
+    let opacity = min(1, max(MainWindowController.minTranslucentOpacity, sender.doubleValue))
+    Preference.set(Float(opacity), for: .translucentWindowOpacity)
+    window?.alphaValue = CGFloat(opacity)
+    titleBarView?.updateTranslucency(isOn: true, opacity: opacity)
+    translucentPanel?.sync(opacity: opacity, isOn: true)
+  }
+
+  /// While on, the whole window is translucent and ignores the mouse, so clicks go to whatever is
+  /// behind it. A window that ignores the mouse can't host its own toggle, so a small separate
+  /// panel stays over the titlebar's trailing edge with the same controls and remains clickable.
+  func setTranslucentMode(_ on: Bool) {
+    guard on != isTranslucentMode else { return }
+    guard let window else { return }
+    isTranslucentMode = on
+    let opacity = min(1, max(MainWindowController.minTranslucentOpacity,
+                             Double(Preference.float(for: .translucentWindowOpacity))))
+    if on {
+      window.alphaValue = CGFloat(opacity)
+      window.ignoresMouseEvents = true
+      let panel = translucentPanel ?? TranslucentControlPanel(controller: self)
+      translucentPanel = panel
+      panel.sync(opacity: opacity, isOn: true)
+      window.addChildWindow(panel, ordered: .above)
+      repositionTranslucentPanel()
+      panel.orderFront(nil)
+    } else {
+      window.alphaValue = 1
+      window.ignoresMouseEvents = false
+      if let panel = translucentPanel {
+        window.removeChildWindow(panel)
+        panel.orderOut(nil)
+      }
+      translucentPanel = nil
+    }
+    titleBarView?.updateTranslucency(isOn: on, opacity: opacity)
+  }
+
+  func repositionTranslucentPanel() {
+    guard isTranslucentMode, let window, let panel = translucentPanel else { return }
+    let size = panel.frame.size
+    var origin = NSPoint(x: window.frame.maxX - size.width - 8,
+                         y: window.frame.maxY - size.height - 7)
+    // Never let the panel leave the screen: it's the only way to turn click-through mode off, so
+    // if the window is dragged partly off-screen, is narrower than the panel, or its screen goes
+    // away, keep the panel inside the visible area of the screen the window mostly occupies.
+    let screen = NSScreen.screens.max {
+      $0.frame.intersection(window.frame).area < $1.frame.intersection(window.frame).area
+    }.flatMap { $0.frame.intersects(window.frame) ? $0 : nil } ?? window.screen ?? NSScreen.main
+    if let visible = screen?.visibleFrame {
+      origin.x = min(max(origin.x, visible.minX), max(visible.minX, visible.maxX - size.width))
+      origin.y = min(max(origin.y, visible.minY), max(visible.minY, visible.maxY - size.height))
+    }
+    panel.setFrameOrigin(origin)
+  }
+}
+
+/// Small always-clickable control strip (toggle + opacity slider) shown over the titlebar while
+/// the main window is in translucent click-through mode.
+final class TranslucentControlPanel: NSPanel {
+  private let slider: NSSlider
+  private let toggle: NSButton
+
+  override var canBecomeKey: Bool { false }
+  override var canBecomeMain: Bool { false }
+
+  init(controller: MainWindowController) {
+    let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+    let dragButton = TranslucentDragButton(image: .sf("drop.fill", withConfiguration: config)!, target: controller,
+                                           action: #selector(MainWindowController.toggleTranslucentMode))
+    dragButton.windowToMove = { [weak controller] in controller?.window }
+    toggle = dragButton
+    toggle.isBordered = false
+    toggle.bezelStyle = .smallSquare
+    toggle.toolTip = "Turn off translucent click-through mode"
+    slider = NSSlider(value: 0.6, minValue: MainWindowController.minTranslucentOpacity, maxValue: 1,
+                      target: controller, action: #selector(MainWindowController.opacitySliderChanged(_:)))
+    slider.controlSize = .small
+    slider.isContinuous = true
+
+    let size = NSSize(width: 124, height: 26)
+    super.init(contentRect: NSRect(origin: .zero, size: size),
+               styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    isOpaque = false
+    backgroundColor = .clear
+    hasShadow = false
+    hidesOnDeactivate = false
+    becomesKeyOnlyIfNeeded = true
+    isReleasedWhenClosed = false
+
+    let background = TranslucentPanelBackground(frame: NSRect(origin: .zero, size: size))
+    background.windowToMove = { [weak controller] in controller?.window }
+    background.material = .hudWindow
+    background.blendingMode = .behindWindow
+    background.state = .active
+    background.wantsLayer = true
+    background.layer?.cornerRadius = 8
+    background.layer?.masksToBounds = true
+
+    let stack = NSStackView(views: [slider, toggle])
+    stack.orientation = .horizontal
+    stack.spacing = 8
+    stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
+    stack.frame = background.bounds
+    stack.autoresizingMask = [.width, .height]
+    slider.widthAnchor.constraint(equalToConstant: 70).isActive = true
+    toggle.widthAnchor.constraint(equalToConstant: 20).isActive = true
+    background.addSubview(stack)
+    contentView = background
+  }
+
+  func sync(opacity: Double, isOn: Bool) {
+    slider.doubleValue = opacity
+    slider.isEnabled = isOn
+  }
+}
+
+private extension NSRect {
+  var area: CGFloat { isNull || isEmpty ? 0 : width * height }
+}
+
+/// Runs a modal mouse-tracking loop that moves `target` with the pointer. Returns whether the
+/// pointer moved far enough to count as a drag (otherwise the caller should treat it as a click).
+private func trackDrag(of target: NSWindow, from trackingWindow: NSWindow) -> Bool {
+  let startMouse = NSEvent.mouseLocation
+  let startOrigin = target.frame.origin
+  var dragged = false
+  while let next = trackingWindow.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+    if next.type == .leftMouseUp { break }
+    let mouse = NSEvent.mouseLocation
+    let dx = mouse.x - startMouse.x
+    let dy = mouse.y - startMouse.y
+    if !dragged && hypot(dx, dy) < 4 { continue }
+    dragged = true
+    target.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
+  }
+  return dragged
+}
+
+/// The toggle in the control panel: a plain click toggles translucent mode, while dragging it
+/// moves the (click-through, therefore otherwise unmovable) main window.
+final class TranslucentDragButton: NSButton {
+  var windowToMove: (() -> NSWindow?)?
+
+  override func mouseDown(with event: NSEvent) {
+    guard let target = windowToMove?(), let trackingWindow = window else {
+      super.mouseDown(with: event)
+      return
+    }
+    if !trackDrag(of: target, from: trackingWindow), let action {
+      NSApp.sendAction(action, to: self.target, from: self)
+    }
+  }
+}
+
+/// Panel background: dragging anywhere on it that isn't a control also moves the main window.
+final class TranslucentPanelBackground: NSVisualEffectView {
+  var windowToMove: (() -> NSWindow?)?
+
+  override func mouseDown(with event: NSEvent) {
+    guard let target = windowToMove?(), let trackingWindow = window else {
+      super.mouseDown(with: event)
+      return
+    }
+    _ = trackDrag(of: target, from: trackingWindow)
   }
 }

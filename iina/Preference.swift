@@ -126,6 +126,8 @@ struct Preference {
 
     /** Horizontal position of control bar. In percentage from bottom. (float, 0 - 1) */
     static let controlBarPositionVertical = Key("controlBarPositionVertical")
+    /// Last opacity chosen for translucent (click-through) mode in the window titlebar.
+    static let translucentWindowOpacity = Key("translucentWindowOpacity")
 
     /** Whether control bar stick to center when dragging. (bool) */
     static let controlBarStickToCenter = Key("controlBarStickToCenter")
@@ -1099,6 +1101,7 @@ struct Preference {
     .trackAllFilesInRecentOpenMenu: true,
     .controlBarPositionHorizontal: Float(0.62),
     .controlBarPositionVertical: Float(0.1),
+    .translucentWindowOpacity: Float(0.6),
     .controlBarStickToCenter: true,
     .controlBarAutoHideTimeout: Float(2.5),
     .enableControlBarAutoHide: true,
