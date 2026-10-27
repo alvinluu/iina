@@ -39,7 +39,7 @@ Changes on top of stock IINA:
     - **Delete and next** — prompts Yes/No/Cancel to trash the current file and advance, keep it and advance, or do nothing.
   - Any file moved to the Trash (via the above, or the existing "Delete Current File" menu command) now shows an OSD confirmation with the filename.
   - "Stay on top" is remembered across restarts.
-- **Translucent click-through mode**: a drop button and opacity slider in the titlebar make the window translucent and click-through, so clicks pass to whatever is behind it. The OSC and seek preview are hidden while it's on. A small always-clickable, always-on-screen panel (play/pause, opacity slider, off switch) stays over the titlebar and can be dragged to move the window. Your last opacity is remembered; the mode always starts off.
+- **Translucent click-through mode**: a drop button and opacity slider in the titlebar make the window translucent and click-through, so clicks pass to whatever is behind it. The OSC and seek preview are hidden while it's on. A small always-clickable, always-on-screen panel (play/pause, opacity slider, off switch) stays centered over the titlebar and can be dragged to move the window. Right-click it for the video-size menu, and hover it to peek at the OSC (display only). Your last opacity is remembered; the mode always starts off.
 - **Playlist**: the "Delete and next" toolbar button loops back to the first file when there is no next file.
 - **Playback state**: playback position and history are saved every second, so a force-quit or crash loses at most a second.
 - **Window size**: the remembered scale is no longer overwritten by full-screen frames or by auto-sizing a new video, which used to make it compound from video to video.
