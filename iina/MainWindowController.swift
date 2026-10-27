@@ -1266,7 +1266,7 @@ class MainWindowController: PlayerWindowController {
 
   /// Builds and shows the video-scale context menu, reusing the same tags/action
   /// (`menuChangeWindowSize(_:)`) as the Window Size menu bar items so the two stay in sync.
-  private func showVideoScaleMenu(with event: NSEvent) {
+  func showVideoScaleMenu(with event: NSEvent, for view: NSView? = nil, includePIP: Bool = true) {
     let menuItems = AppDelegate.shared.menuController!
     let currentScale = player.info.cachedWindowScale
     let menu = NSMenu()
@@ -1284,13 +1284,13 @@ class MainWindowController: PlayerWindowController {
       menu.addItem(withTitle: fitToScreen.title, action: #selector(menuChangeWindowSize(_:)),
                    target: self, tag: fitToScreen.tag)
     }
-    menu.addItem(NSMenuItem.separator())
-    if let pictureInPicture = menuItems.pictureInPicture {
+    if includePIP { menu.addItem(NSMenuItem.separator()) }
+    if includePIP, let pictureInPicture = menuItems.pictureInPicture {
       menu.addItem(withTitle: pipStatus == .inPIP ? Constants.String.exitPIP : Constants.String.pip,
                    action: #selector(menuTogglePIP(_:)), target: self,
                    enabled: pictureInPicture.isEnabled)
     }
-    NSMenu.popUpContextMenu(menu, with: event, for: videoView)
+    NSMenu.popUpContextMenu(menu, with: event, for: view ?? videoView)
   }
 
   override internal func performMouseAction(_ action: Preference.MouseClickAction) {
@@ -3815,7 +3815,7 @@ extension MainWindowController {
 
   /// While on, the whole window is translucent and ignores the mouse, so clicks go to whatever is
   /// behind it. A window that ignores the mouse can't host its own toggle, so a small separate
-  /// panel stays over the titlebar's trailing edge with the same controls and remains clickable.
+  /// panel stays centered over the titlebar with the same controls and remains clickable.
   func setTranslucentMode(_ on: Bool) {
     guard on != isTranslucentMode else { return }
     guard let window else { return }
@@ -3857,7 +3857,7 @@ extension MainWindowController {
   func repositionTranslucentPanel() {
     guard isTranslucentMode, let window, let panel = translucentPanel else { return }
     let size = panel.frame.size
-    var origin = NSPoint(x: window.frame.maxX - size.width - 8,
+    var origin = NSPoint(x: window.frame.midX - size.width / 2,
                          y: window.frame.maxY - size.height - 7)
     // Never let the panel leave the screen: it's the only way to turn click-through mode off, so
     // if the window is dragged partly off-screen, is narrower than the panel, or its screen goes
@@ -3894,6 +3894,9 @@ final class TranslucentControlPanel: NSPanel {
     let dragButton = TranslucentDragButton(image: .sf("drop.fill", withConfiguration: config)!, target: controller,
                                            action: #selector(MainWindowController.toggleTranslucentMode))
     dragButton.windowToMove = { [weak controller] in controller?.window }
+    dragButton.onContextMenu = { [weak controller] event, view in
+      controller?.showVideoScaleMenu(with: event, for: view, includePIP: false)
+    }
     toggle = dragButton
     toggle.isBordered = false
     toggle.bezelStyle = .smallSquare
@@ -3915,6 +3918,9 @@ final class TranslucentControlPanel: NSPanel {
 
     let background = TranslucentPanelBackground(frame: NSRect(origin: .zero, size: size))
     background.windowToMove = { [weak controller] in controller?.window }
+    background.onContextMenu = { [weak controller] event, view in
+      controller?.showVideoScaleMenu(with: event, for: view, includePIP: false)
+    }
     background.material = .hudWindow
     background.blendingMode = .behindWindow
     background.state = .active
@@ -3972,6 +3978,11 @@ private func trackDrag(of target: NSWindow, from trackingWindow: NSWindow) -> Bo
 /// moves the (click-through, therefore otherwise unmovable) main window.
 final class TranslucentDragButton: NSButton {
   var windowToMove: (() -> NSWindow?)?
+  var onContextMenu: ((NSEvent, NSView) -> Void)?
+
+  override func rightMouseDown(with event: NSEvent) {
+    if let onContextMenu { onContextMenu(event, self) } else { super.rightMouseDown(with: event) }
+  }
 
   override func mouseDown(with event: NSEvent) {
     guard let target = windowToMove?(), let trackingWindow = window else {
@@ -3987,6 +3998,11 @@ final class TranslucentDragButton: NSButton {
 /// Panel background: dragging anywhere on it that isn't a control also moves the main window.
 final class TranslucentPanelBackground: NSVisualEffectView {
   var windowToMove: (() -> NSWindow?)?
+  var onContextMenu: ((NSEvent, NSView) -> Void)?
+
+  override func rightMouseDown(with event: NSEvent) {
+    if let onContextMenu { onContextMenu(event, self) } else { super.rightMouseDown(with: event) }
+  }
 
   override func mouseDown(with event: NSEvent) {
     guard let target = windowToMove?(), let trackingWindow = window else {
