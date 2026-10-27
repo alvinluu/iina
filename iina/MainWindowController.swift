@@ -696,7 +696,7 @@ class MainWindowController: PlayerWindowController {
     }
 
     fadeableViews.add(oscBottomView) { [unowned self] in
-      if isTranslucentMode {
+      if isTranslucentMode && !isTranslucentPanelHovered {
         .alwaysHidden
       } else if oscPosition == .bottom {
         Preference.isDocked ? .alwaysShown : .auto
@@ -706,7 +706,7 @@ class MainWindowController: PlayerWindowController {
     }
 
     fadeableViews.add(oscFloatingView) { [unowned self] in
-      !isTranslucentMode && oscPosition == .floating ? .auto : .alwaysHidden
+      (!isTranslucentMode || isTranslucentPanelHovered) && oscPosition == .floating ? .auto : .alwaysHidden
     }
 
     fadeableViews.update()
@@ -3092,6 +3092,7 @@ class MainWindowController: PlayerWindowController {
 
   static let minTranslucentOpacity = 0.15
   private(set) var isTranslucentMode = false
+  private var isTranslucentPanelHovered = false
   private var translucentPanel: TranslucentControlPanel?
 
   // KNOWN ISSUE (unfixed, believed to be an AppKit bug, not ours): after this window has entered
@@ -3820,6 +3821,7 @@ extension MainWindowController {
     guard on != isTranslucentMode else { return }
     guard let window else { return }
     isTranslucentMode = on
+    isTranslucentPanelHovered = false
     if on {
       thumbnailPeekView?.isHidden = true
       timePreviewView?.isHidden = true
@@ -3848,6 +3850,19 @@ extension MainWindowController {
     titleBarView?.updateTranslucency(isOn: on, opacity: opacity)
     // The OSC is hidden while translucent (the window can't be clicked through to use it anyway).
     fadeableViews.update()
+  }
+
+  /// The OSC is normally hidden while translucent, but is revealed (display only, the window is
+  /// click-through) while the pointer is over the control panel.
+  func translucentPanelHoverChanged(_ hovered: Bool) {
+    guard isTranslucentMode, hovered != isTranslucentPanelHovered else { return }
+    isTranslucentPanelHovered = hovered
+    fadeableViews.update()
+    if hovered {
+      showUI()
+    } else {
+      hideUI(force: true)
+    }
   }
 
   func syncTranslucentPanelPlayState(paused: Bool) {
@@ -3921,6 +3936,7 @@ final class TranslucentControlPanel: NSPanel {
     background.onContextMenu = { [weak controller] event, view in
       controller?.showVideoScaleMenu(with: event, for: view, includePIP: false)
     }
+    background.onHover = { [weak controller] hovered in controller?.translucentPanelHoverChanged(hovered) }
     background.material = .hudWindow
     background.blendingMode = .behindWindow
     background.state = .active
@@ -3999,6 +4015,18 @@ final class TranslucentDragButton: NSButton {
 final class TranslucentPanelBackground: NSVisualEffectView {
   var windowToMove: (() -> NSWindow?)?
   var onContextMenu: ((NSEvent, NSView) -> Void)?
+  var onHover: ((Bool) -> Void)?
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    trackingAreas.forEach(removeTrackingArea)
+    addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                   owner: self, userInfo: nil))
+  }
+
+  override func mouseEntered(with event: NSEvent) { onHover?(true) }
+
+  override func mouseExited(with event: NSEvent) { onHover?(false) }
 
   override func rightMouseDown(with event: NSEvent) {
     if let onContextMenu { onContextMenu(event, self) } else { super.rightMouseDown(with: event) }
