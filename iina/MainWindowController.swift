@@ -696,7 +696,9 @@ class MainWindowController: PlayerWindowController {
     }
 
     fadeableViews.add(oscBottomView) { [unowned self] in
-      if oscPosition == .bottom {
+      if isTranslucentMode {
+        .alwaysHidden
+      } else if oscPosition == .bottom {
         Preference.isDocked ? .alwaysShown : .auto
       } else {
         .alwaysHidden
@@ -704,7 +706,7 @@ class MainWindowController: PlayerWindowController {
     }
 
     fadeableViews.add(oscFloatingView) { [unowned self] in
-      oscPosition == .floating ? .auto : .alwaysHidden
+      !isTranslucentMode && oscPosition == .floating ? .auto : .alwaysHidden
     }
 
     fadeableViews.update()
@@ -2740,7 +2742,8 @@ class MainWindowController: PlayerWindowController {
   private func refreshSeekTimeAndThumbnail(from event: NSEvent) {
     let isCoveredByOSD = !osdView.isHidden && event.inAnyOf([osdView])
     let isCoveredBySidebar = sidebars.isEventCoveringVisibleSidebar(event)
-    if !playSlider.isHidden && event.inAnyOf([playSlider]), !isCoveredByOSD, !isCoveredBySidebar {
+    // The OSC is hidden in translucent mode, so its (invisible) slider must not show previews.
+    if !isTranslucentMode, !playSlider.isHidden && event.inAnyOf([playSlider]), !isCoveredByOSD, !isCoveredBySidebar {
       updateTimePreviewAndThumbnail(event.locationInWindow)
     } else {
       thumbnailPeekView.isHidden = true
@@ -3580,7 +3583,7 @@ class MainWindowController: PlayerWindowController {
 
   /** Display time label when mouse over slider */
   private func updateTimePreviewAndThumbnail(_ posInWindow: NSPoint) {
-    guard let duration = player.info.videoDuration else {
+    guard !isTranslucentMode, let duration = player.info.videoDuration else {
       thumbnailPeekView.isHidden = true
       timePreviewView.isHidden = true
       return
@@ -3817,6 +3820,10 @@ extension MainWindowController {
     guard on != isTranslucentMode else { return }
     guard let window else { return }
     isTranslucentMode = on
+    if on {
+      thumbnailPeekView?.isHidden = true
+      timePreviewView?.isHidden = true
+    }
     let opacity = min(1, max(MainWindowController.minTranslucentOpacity,
                              Double(Preference.float(for: .translucentWindowOpacity))))
     if on {
@@ -3839,6 +3846,8 @@ extension MainWindowController {
       translucentPanel = nil
     }
     titleBarView?.updateTranslucency(isOn: on, opacity: opacity)
+    // The OSC is hidden while translucent (the window can't be clicked through to use it anyway).
+    fadeableViews.update()
   }
 
   func syncTranslucentPanelPlayState(paused: Bool) {
