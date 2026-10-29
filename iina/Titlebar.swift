@@ -42,7 +42,6 @@ class Titlebar: NSView {
 
   private var onTopButton: NSButton
   private var translucentButton: NSButton
-  private(set) var opacitySlider: NSSlider
   private var removeBlackBarButton: NSButton
 
   private var container: NSStackView!
@@ -84,12 +83,6 @@ class Titlebar: NSView {
       target: mainWindow,
       action: #selector(MainWindowController.toggleTranslucentMode)
     )
-    self.opacitySlider = NSSlider(
-      value: Double(Preference.float(for: .translucentWindowOpacity)),
-      minValue: MainWindowController.minTranslucentOpacity, maxValue: 1,
-      target: mainWindow, action: #selector(MainWindowController.opacitySliderChanged(_:)))
-    opacitySlider.controlSize = .small
-    opacitySlider.isContinuous = true
 
     self.removeBlackBarButton = NSButton(
       image: .sf("remove.blackbars", withConfiguration: accessoryIconConfig)!,
@@ -131,10 +124,7 @@ class Titlebar: NSView {
     translucentButton.bezelStyle = .smallSquare
     translucentButton.isBordered = false
     translucentButton.toolTip = "Translucent click-through mode"
-    opacitySlider.translatesAutoresizingMaskIntoConstraints = false
-    opacitySlider.size(width: 70)
-    opacitySlider.toolTip = "Window opacity (turn on translucent mode to adjust)"
-    updateTranslucency(isOn: false, opacity: opacitySlider.doubleValue)
+    updateTranslucency(isOn: false)
 
     removeBlackBarButton.size(height: 16)
     removeBlackBarButton.imageScaling = .scaleProportionallyDown
@@ -213,7 +203,7 @@ class Titlebar: NSView {
       titleLeadingConstraint.priority = .defaultHigh
       titleLeadingConstraint.isActive = true
 
-      let accessoryView = NSStackView(views: [opacitySlider, translucentButton, removeBlackBarButton, onTopButton])
+      let accessoryView = NSStackView(views: [translucentButton, removeBlackBarButton, onTopButton])
       accessoryView.translatesAutoresizingMaskIntoConstraints = false
       accessoryView.orientation = .horizontal
       accessoryView.spacing = 8
@@ -278,12 +268,10 @@ class Titlebar: NSView {
     updateVerticalConstraint(isDisplaying: !inFullScreen || hasOSC)
   }
 
-  func updateTranslucency(isOn: Bool, opacity: Double) {
+  func updateTranslucency(isOn: Bool) {
     translucentButton.image = isOn ?
       .sf("drop.fill", withConfiguration: accessoryIconConfig) :
       .sf("drop", withConfiguration: accessoryIconConfig)
-    opacitySlider.isEnabled = isOn
-    opacitySlider.doubleValue = opacity
   }
 
   func updateOnTopIcon() {

@@ -3814,7 +3814,7 @@ extension MainWindowController {
     let opacity = min(1, max(MainWindowController.minTranslucentOpacity, sender.doubleValue))
     Preference.set(Float(opacity), for: .translucentWindowOpacity)
     window?.alphaValue = CGFloat(opacity)
-    titleBarView?.updateTranslucency(isOn: true, opacity: opacity)
+    titleBarView?.updateTranslucency(isOn: true)
     translucentPanel?.sync(opacity: opacity, isOn: true)
   }
 
@@ -3854,7 +3854,7 @@ extension MainWindowController {
       }
       translucentPanel = nil
     }
-    titleBarView?.updateTranslucency(isOn: on, opacity: opacity)
+    titleBarView?.updateTranslucency(isOn: on)
     // The OSC is hidden while translucent (the window can't be clicked through to use it anyway).
     fadeableViews.update()
   }
