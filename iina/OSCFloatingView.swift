@@ -34,6 +34,12 @@ class OSCFloatingView: TranslucentView {
 
   private var isAlignFeedbackSent = false
 
+  /// True while the translucent control panel hosts this view instead of the main window.
+  private(set) var isEmbedded = false
+  /// Called instead of the usual OSC dragging while embedded, so the panel can move the window.
+  var onEmbeddedMouseDown: ((NSEvent) -> Void)?
+  private var embeddedConstraints: [NSLayoutConstraint] = []
+
   init(mainWindow: MainWindowController) {
     self.mainWindow = mainWindow
 
@@ -108,6 +114,36 @@ class OSCFloatingView: TranslucentView {
     yConstraint.isActive = true
   }
 
+  /// Moves this view into `container` (the translucent control panel's content), pinned to its
+  /// top and sides. Undone by `restoreToMainWindow()`.
+  func embed(in container: NSView) {
+    xConstraint?.isActive = false
+    yConstraint?.isActive = false
+    NSLayoutConstraint.deactivate(boundaryConstraints)
+    NSLayoutConstraint.deactivate(embeddedConstraints)
+    removeFromSuperview()
+    container.addSubview(self)
+    embeddedConstraints = [
+      leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      topAnchor.constraint(equalTo: container.topAnchor)
+    ]
+    NSLayoutConstraint.activate(embeddedConstraints)
+    isEmbedded = true
+  }
+
+  func restoreToMainWindow() {
+    NSLayoutConstraint.deactivate(embeddedConstraints)
+    embeddedConstraints = []
+    isEmbedded = false
+    removeFromSuperview()
+    guard let contentView = mainWindow.window?.contentView else { return }
+    contentView.addSubview(self, positioned: .below, relativeTo: mainWindow.osdView)
+    setupConstraints()
+    contentView.layoutSubtreeIfNeeded()
+    updatePosition()
+  }
+
   func initPosition() {
     let videoView = mainWindow.videoViewContainer!
     let cph = Preference.float(for: .controlBarPositionHorizontal)
@@ -156,6 +192,10 @@ class OSCFloatingView: TranslucentView {
   }
 
   override func mouseDown(with event: NSEvent) {
+    if isEmbedded {
+      onEmbeddedMouseDown?(event)
+      return
+    }
     mousePosRelatedToView = NSEvent.mouseLocation
     mousePosRelatedToView!.x -= frame.origin.x
     mousePosRelatedToView!.y -= frame.origin.y
@@ -164,7 +204,7 @@ class OSCFloatingView: TranslucentView {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    guard let mousePos = mousePosRelatedToView else { return }
+    guard !isEmbedded, let mousePos = mousePosRelatedToView else { return }
     let windowFrame = mainWindow.videoViewContainer.frame
     let currentLocation = NSEvent.mouseLocation
     var newOrigin = CGPoint(
@@ -196,6 +236,7 @@ class OSCFloatingView: TranslucentView {
   }
 
   override func mouseUp(with event: NSEvent) {
+    guard !isEmbedded else { return }
     isDragging = false
     let windowFrame = mainWindow.videoViewContainer.frame
     // save final position

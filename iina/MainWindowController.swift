@@ -706,7 +706,11 @@ class MainWindowController: PlayerWindowController {
     }
 
     fadeableViews.add(oscFloatingView) { [unowned self] in
-      (!isTranslucentMode || isTranslucentPanelHovered) && oscPosition == .floating ? .auto : .alwaysHidden
+      if isTranslucentMode {
+        // While hovered the floating OSC lives inside the translucent panel (always shown there).
+        return oscPosition == .floating && isTranslucentPanelHovered ? .alwaysShown : .alwaysHidden
+      }
+      return oscPosition == .floating ? .auto : .alwaysHidden
     }
 
     fadeableViews.update()
@@ -3820,6 +3824,10 @@ extension MainWindowController {
   func setTranslucentMode(_ on: Bool) {
     guard on != isTranslucentMode else { return }
     guard let window else { return }
+    if !on, isTranslucentPanelHovered, oscPosition == .floating, let panel = translucentPanel {
+      panel.collapse()
+      oscFloatingView.restoreToMainWindow()
+    }
     isTranslucentMode = on
     isTranslucentPanelHovered = false
     if on {
@@ -3834,7 +3842,6 @@ extension MainWindowController {
       let panel = translucentPanel ?? TranslucentControlPanel(controller: self)
       translucentPanel = panel
       panel.sync(opacity: opacity, isOn: true)
-      panel.setPaused(player.mpv.getFlag(MPVOption.PlaybackControl.pause))
       window.addChildWindow(panel, ordered: .above)
       repositionTranslucentPanel()
       panel.orderFront(nil)
@@ -3857,16 +3864,26 @@ extension MainWindowController {
   func translucentPanelHoverChanged(_ hovered: Bool) {
     guard isTranslucentMode, hovered != isTranslucentPanelHovered else { return }
     isTranslucentPanelHovered = hovered
+    if oscPosition == .floating, let panel = translucentPanel {
+      // Expand the panel into the full floating OSC (the mini strip stays put in its empty top
+      // center); collapse back to the mini panel when the pointer leaves.
+      if hovered {
+        oscFloatingView.alphaValue = 1
+        panel.expand(osc: oscFloatingView)
+      } else {
+        panel.collapse()
+        oscFloatingView.restoreToMainWindow()
+      }
+      fadeableViews.update()
+      repositionTranslucentPanel()
+      return
+    }
     fadeableViews.update()
     if hovered {
       showUI()
     } else {
       hideUI(force: true)
     }
-  }
-
-  func syncTranslucentPanelPlayState(paused: Bool) {
-    translucentPanel?.setPaused(paused)
   }
 
   func repositionTranslucentPanel() {
@@ -3893,19 +3910,20 @@ extension MainWindowController {
 final class TranslucentControlPanel: NSPanel {
   private let slider: NSSlider
   private let toggle: NSButton
-  private let playPause: NSButton
+  private var miniContent: TranslucentPanelBackground!
+  private let expandedContent = TranslucentHoverContainer()
+  private weak var embeddedOSC: OSCFloatingView?
+  private(set) var isExpanded = false
+
+  /// Collapsed: just the off switch. Expanded: off switch plus the opacity slider, to its right.
+  private static let miniSize = NSSize(width: 40, height: 26)
+  private static let stripSize = NSSize(width: 118, height: 26)
 
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
 
   init(controller: MainWindowController) {
     let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
-    playPause = NSButton(image: NSImage(named: "pause") ?? NSImage(), target: controller,
-                         action: #selector(MainWindowController.playButtonAction(_:)))
-    playPause.isBordered = false
-    playPause.bezelStyle = .smallSquare
-    playPause.imageScaling = .scaleProportionallyDown
-    playPause.toolTip = "Play/Pause"
     let dragButton = TranslucentDragButton(image: .sf("drop.fill", withConfiguration: config)!, target: controller,
                                            action: #selector(MainWindowController.toggleTranslucentMode))
     dragButton.windowToMove = { [weak controller] in controller?.window }
@@ -3914,6 +3932,7 @@ final class TranslucentControlPanel: NSPanel {
     }
     toggle = dragButton
     toggle.isBordered = false
+    toggle.imagePosition = .imageOnly
     toggle.bezelStyle = .smallSquare
     toggle.toolTip = "Turn off translucent click-through mode"
     slider = NSSlider(value: 0.6, minValue: MainWindowController.minTranslucentOpacity, maxValue: 1,
@@ -3921,7 +3940,7 @@ final class TranslucentControlPanel: NSPanel {
     slider.controlSize = .small
     slider.isContinuous = true
 
-    let size = NSSize(width: 160, height: 26)
+    let size = TranslucentControlPanel.miniSize
     super.init(contentRect: NSRect(origin: .zero, size: size),
                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     isOpaque = false
@@ -3936,7 +3955,16 @@ final class TranslucentControlPanel: NSPanel {
     background.onContextMenu = { [weak controller] event, view in
       controller?.showVideoScaleMenu(with: event, for: view, includePIP: false)
     }
-    background.onHover = { [weak controller] hovered in controller?.translucentPanelHoverChanged(hovered) }
+    background.onHover = { [weak self, weak controller] hovered in
+      guard self?.isExpanded == false else { return }
+      controller?.translucentPanelHoverChanged(hovered)
+    }
+    expandedContent.onHover = { [weak self, weak controller] hovered in
+      guard self?.isExpanded == true else { return }
+      controller?.translucentPanelHoverChanged(hovered)
+    }
+    expandedContent.windowToMove = { [weak controller] in controller?.window }
+    miniContent = background
     background.material = .hudWindow
     background.blendingMode = .behindWindow
     background.state = .active
@@ -3944,22 +3972,57 @@ final class TranslucentControlPanel: NSPanel {
     background.layer?.cornerRadius = 8
     background.layer?.masksToBounds = true
 
-    let stack = NSStackView(views: [playPause, slider, toggle])
-    stack.orientation = .horizontal
-    stack.spacing = 8
-    stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)
-    stack.frame = background.bounds
-    stack.autoresizingMask = [.width, .height]
-    slider.widthAnchor.constraint(equalToConstant: 70).isActive = true
+    // Fixed 10pt inset: centers the 20pt off switch in the 40pt collapsed panel, and keeps it in
+    // the same place when the strip widens to show the slider to its right.
+    [toggle, slider].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+      background.addSubview($0)
+      $0.centerYAnchor.constraint(equalTo: background.centerYAnchor).isActive = true
+    }
+    toggle.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 10).isActive = true
     toggle.widthAnchor.constraint(equalToConstant: 20).isActive = true
-    playPause.widthAnchor.constraint(equalToConstant: 18).isActive = true
-    playPause.heightAnchor.constraint(equalToConstant: 18).isActive = true
-    background.addSubview(stack)
+    toggle.heightAnchor.constraint(equalToConstant: 20).isActive = true
+    slider.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 8).isActive = true
+    slider.widthAnchor.constraint(equalToConstant: 70).isActive = true
+    slider.isHidden = true
     contentView = background
   }
 
-  func setPaused(_ paused: Bool) {
-    playPause.image = NSImage(named: paused ? "play" : "pause")
+  /// Grows the panel into the full floating OSC. The off switch stays exactly where it was,
+  /// in the empty top center of the OSC, and the opacity slider is revealed next to it.
+  func expand(osc: OSCFloatingView) {
+    guard !isExpanded else { return }
+    isExpanded = true
+    embeddedOSC = osc
+    slider.isHidden = false
+    osc.onEmbeddedMouseDown = { [weak expandedContent] event in
+      expandedContent?.mouseDown(with: event)
+    }
+    contentView = expandedContent
+    osc.embed(in: expandedContent)
+    expandedContent.layoutSubtreeIfNeeded()
+    let miniSize = TranslucentControlPanel.miniSize
+    let stripSize = TranslucentControlPanel.stripSize
+    let size = NSSize(width: 460, height: max(osc.fittingSize.height, stripSize.height))
+    setContentSize(size)
+    miniContent.removeFromSuperview()
+    miniContent.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
+    // Left edge where the collapsed panel's was, so the off switch doesn't move.
+    miniContent.frame = NSRect(x: (size.width - miniSize.width) / 2, y: size.height - stripSize.height,
+                               width: stripSize.width, height: stripSize.height)
+    expandedContent.addSubview(miniContent)
+  }
+
+  func collapse() {
+    guard isExpanded else { return }
+    isExpanded = false
+    embeddedOSC?.onEmbeddedMouseDown = nil
+    embeddedOSC = nil
+    slider.isHidden = true
+    miniContent.removeFromSuperview()
+    miniContent.autoresizingMask = [.width, .height]
+    contentView = miniContent
+    setContentSize(TranslucentControlPanel.miniSize)
   }
 
   func sync(opacity: Double, isOn: Bool) {
@@ -4012,6 +4075,32 @@ final class TranslucentDragButton: NSButton {
 }
 
 /// Panel background: dragging anywhere on it that isn't a control also moves the main window.
+/// Content of the expanded translucent panel: hosts the floating OSC and reports pointer hover.
+/// Dragging its empty areas moves the window, like the mini panel.
+final class TranslucentHoverContainer: NSView {
+  var windowToMove: (() -> NSWindow?)?
+  var onHover: ((Bool) -> Void)?
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    trackingAreas.forEach(removeTrackingArea)
+    addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                   owner: self, userInfo: nil))
+  }
+
+  override func mouseEntered(with event: NSEvent) { onHover?(true) }
+
+  override func mouseExited(with event: NSEvent) { onHover?(false) }
+
+  override func mouseDown(with event: NSEvent) {
+    guard let target = windowToMove?(), let trackingWindow = window else {
+      super.mouseDown(with: event)
+      return
+    }
+    _ = trackDrag(of: target, from: trackingWindow)
+  }
+}
+
 final class TranslucentPanelBackground: NSVisualEffectView {
   var windowToMove: (() -> NSWindow?)?
   var onContextMenu: ((NSEvent, NSView) -> Void)?
