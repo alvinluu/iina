@@ -448,6 +448,12 @@ class SidebarController: NSObject {
     }
     let tabType = tab.flatMap(view.findTab(named:))
 
+    // The playlist gets a window of its own instead of the sidebar (the mini player keeps its own).
+    if view === playlistView, tabType == nil || tabType == .playlist, !mainWindow.player.isInMiniPlayer {
+      mainWindow.player.togglePlaylistWindow()
+      return
+    }
+
     let sidebar = sidebar ?? (view == quickSettingView ? .settings : view == playlistView ? .playlist : .plugins)
 
     toggleSideBar(type: sidebar, viewController: view, tab: tabType,

@@ -33,6 +33,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   private var addBtn: NSButton!
   private var removeBtn: NSButton!
   private var deleteBtn: NSButton!
+  private var popOutBtn: NSButton!
   private var loopBtn: NSButton!
   private var shuffleBtn: NSButton!
   private var sortBtn: NSButton!
@@ -40,6 +41,12 @@ class SidebarPlaylistPane: NSView, SidebarPane {
   private var addFileMenu: NSMenu!
 
   var horizontalScroll: ((Bool) -> Void)?
+
+  /// Set by the sidebar to offer a button that moves the playlist into its own window; left nil
+  /// (button hidden) when the pane already lives in that window.
+  var onPopOut: (() -> Void)? {
+    didSet { popOutBtn?.isHidden = onPopOut == nil }
+  }
 
   @Atomic private var playlistTotalLengthIsReady = false
   @Atomic private var playlistTotalLength: Double? = nil
@@ -75,6 +82,9 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     addBtn = makeButton("add", "plus", #selector(addToPlaylistBtnAction))
     removeBtn = makeButton("remove", "minus", #selector(removeBtnAction))
     deleteBtn = makeButton("delete", "trash", #selector(clearPlaylistBtnAction))
+    popOutBtn = makeButton("pop_out", "arrow.up.forward.app", #selector(popOutBtnAction))
+    popOutBtn.toolTip = "Open the playlist in its own window"
+    popOutBtn.isHidden = true
 
     totalLengthLabel = NSTextField(labelWithString: "")
     totalLengthLabel.textColor = .secondaryLabelColor
@@ -129,7 +139,7 @@ class SidebarPlaylistPane: NSView, SidebarPane {
       buttonStack.addView($0, in: .leading)
     }
     buttonStack.addView(totalLengthLabel, in: .center)
-    [addBtn, removeBtn, deleteBtn].forEach {
+    [popOutBtn, addBtn, removeBtn, deleteBtn].forEach {
       buttonStack.addView($0, in: .trailing)
     }
     buttonContainer.addSubview(buttonStack)
@@ -160,6 +170,10 @@ class SidebarPlaylistPane: NSView, SidebarPane {
     }
 
     updateTable()
+  }
+
+  @objc private func popOutBtnAction() {
+    onPopOut?()
   }
 
   private func update() {
@@ -966,5 +980,32 @@ class PlaylistPrefixButton: NSButton {
 
   private func refresh() {
     self.title = isFolded ? "…" : text
+  }
+}
+
+
+/// The playlist in a window of its own, so it can sit beside (or on another screen from) the video.
+final class PlaylistWindowController: NSWindowController, NSWindowDelegate {
+  init(player: PlayerCore) {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 560),
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                          backing: .buffered, defer: false)
+    window.title = NSLocalizedString("sidebar.playlist", comment: "Playlist")
+    window.isReleasedWhenClosed = false
+    window.minSize = NSSize(width: 260, height: 240)
+    window.collectionBehavior = [.fullScreenNone]
+    window.standardWindowButton(.zoomButton)?.isHidden = true
+    window.contentView = SidebarPlaylistPane(player: player)
+    window.setFrameAutosaveName("PlaylistWindow")
+    super.init(window: window)
+    window.delegate = self
+    if !window.setFrameUsingName("PlaylistWindow") {
+      window.center()
+    }
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
   }
 }

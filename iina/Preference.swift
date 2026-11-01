@@ -949,7 +949,7 @@ struct Preference {
       case .fullScreen: return makeSymbol(["arrow.down.forward.and.arrow.up.backward.rectangle", "arrow.down.right.and.arrow.up.left"])
       case .plugins: return makeSymbol(["puzzlepiece.extension.fill", "puzzlepiece.fill"], size: 13.5)
       case .liveText: return makeSymbol(["viewfinder.circle.fill"])
-      case .trashAfterFinish: return makeSymbol(["trash.circle.fill", "trash.fill"])
+      case .trashAfterFinish: return makeSymbol(["trash.fill"], size: 15)
       case .sameOrientation: return makeSymbol(["rectangle.portrait.on.rectangle.portrait.fill", "rectangle.portrait.fill"])
       default: return nil
       }

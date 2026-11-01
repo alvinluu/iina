@@ -40,9 +40,12 @@ class PlaylistViewController: SidebarViewController {
   }
 
   override func getTabView(for tab: SidebarViewController.TabType) -> SidebarPane {
-    return switch tab {
-    case .playlist: SidebarPlaylistPane(player: player)
-    case .chapters: SidebarChaptersPane(player: player)
+    switch tab {
+    case .playlist:
+      let pane = SidebarPlaylistPane(player: player)
+      pane.onPopOut = { [weak self] in self?.player.showPlaylistWindow() }
+      return pane
+    case .chapters: return SidebarChaptersPane(player: player)
     default: fatalError()
     }
   }

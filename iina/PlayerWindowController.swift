@@ -661,6 +661,7 @@ class PlayerWindowController: NSWindowController, NSWindowDelegate {
   func setWindowFloatingOnTop(_ onTop: Bool, updateOnTopStatus: Bool = true) {
     guard let window else { return }
     window.level = onTop ? .iinaFloating : .normal
+    player.updatePlaylistWindowLevel()
     if (updateOnTopStatus) {
       self.isOntop = onTop
     }

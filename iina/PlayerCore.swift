@@ -251,6 +251,8 @@ class PlayerCore: NSObject {
   var isInMiniPlayer = false
   /// Scan for the next same-orientation entry (see `favorSameOrientationNext`).
   var orientationScanTask: Task<Void, Never>?
+  /// The playlist popped out of the sidebar; created on first use and kept for the player's lifetime.
+  private var playlistWindowController: PlaylistWindowController?
   /// Set this to `true` if user changes "music mode" status manually. This disables `autoSwitchToMusicMode`
   /// functionality for the duration of this player even if the preference is `true`. But if they manually change the
   /// "music mode" status again, change this to `false` so that the preference is honored again.
@@ -3305,6 +3307,36 @@ extension PlayerCore: FFmpegControllerDelegate {
       }
       events.emit(.thumbnailsReady)
     }
+  }
+}
+
+// MARK: - Playlist window
+
+extension PlayerCore {
+  /// Keeps the playlist window just above the player window when that one floats on top, so the
+  /// playlist can't end up hidden behind it.
+  func updatePlaylistWindowLevel() {
+    guard let window = playlistWindowController?.window else { return }
+    let playerLevel = mainWindow.window?.level ?? .normal
+    window.level = playerLevel == .normal ? .normal : NSWindow.Level(rawValue: playerLevel.rawValue + 1)
+  }
+
+  /// Opens the playlist window, or closes it if it is already showing.
+  func togglePlaylistWindow() {
+    if let window = playlistWindowController?.window, window.isVisible {
+      window.close()
+    } else {
+      showPlaylistWindow()
+    }
+  }
+
+  /// Shows the playlist in its own window and closes the sidebar copy.
+  func showPlaylistWindow() {
+    let controller = playlistWindowController ?? PlaylistWindowController(player: self)
+    playlistWindowController = controller
+    mainWindow.sidebars.hide(.playlist)
+    updatePlaylistWindowLevel()
+    controller.showWindow(nil)
   }
 }
 
