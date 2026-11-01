@@ -113,6 +113,7 @@ struct Preference {
     static let enableLiveText = Key("enableLiveText")
 
     static let trashAfterPlaybackFinished = Key("trashAfterPlaybackFinished")
+    static let favorSameOrientation = Key("favorSameOrientation")
 
     static let playlistAutoAdd = Key("playlistAutoAdd")
     static let playlistAutoPlayNext = Key("playlistAutoPlayNext")
@@ -899,6 +900,7 @@ struct Preference {
     case liveText
     case trashAfterFinish
     case deleteAndNext
+    case sameOrientation
 
     var description: String {
       switch self {
@@ -913,6 +915,7 @@ struct Preference {
       case .liveText: "liveText"
       case .trashAfterFinish: "trashAfterFinish"
       case .deleteAndNext: "deleteAndNext"
+      case .sameOrientation: "sameOrientation"
       }
     }
 
@@ -934,6 +937,7 @@ struct Preference {
       case .liveText: return makeSymbol(["document.viewfinder", "doc.viewfinder", "doc.text.viewfinder"])
       case .trashAfterFinish: return makeSymbol(["trash", "trash.fill"])
       case .deleteAndNext: return makeSymbol(["forward.end.alt", "forward.end"])
+      case .sameOrientation: return makeSymbol(["rectangle.portrait.on.rectangle.portrait", "rectangle.portrait"])
       }
     }
 
@@ -946,6 +950,7 @@ struct Preference {
       case .plugins: return makeSymbol(["puzzlepiece.extension.fill", "puzzlepiece.fill"], size: 13.5)
       case .liveText: return makeSymbol(["viewfinder.circle.fill"])
       case .trashAfterFinish: return makeSymbol(["trash.circle.fill", "trash.fill"])
+      case .sameOrientation: return makeSymbol(["rectangle.portrait.on.rectangle.portrait.fill", "rectangle.portrait.fill"])
       default: return nil
       }
     }
@@ -964,6 +969,7 @@ struct Preference {
       case .liveText: key = "live_text"
       case .trashAfterFinish: key = "trash_after_finish"
       case .deleteAndNext: key = "delete_and_next"
+      case .sameOrientation: key = "same_orientation"
       }
       return NSLocalizedString("osc_toolbar.\(key)", comment: key)
     }
@@ -1308,6 +1314,7 @@ struct Preference {
     .enableLiveText: false,
 
     .trashAfterPlaybackFinished: false,
+    .favorSameOrientation: false,
 
     .watchProperties: [String](),
     .savedVideoFilters: [SavedFilter](),

@@ -35,7 +35,7 @@ class PrefOSCToolbarSettingsSheetController: NSWindowController, PrefOSCToolbarC
     currentItemsView.initItems(fromItems: PrefUIViewController.oscToolbarButtons)
 
     var allButtonTypes: [Preference.ToolBarButton] = [.settings, .playlist, .pip, .fullScreen, .musicMode, .subTrack, .screenshot, .plugins,
-                                                       .trashAfterFinish, .deleteAndNext]
+                                                       .trashAfterFinish, .deleteAndNext, .sameOrientation]
     if #available(macOS 13, *) {
       allButtonTypes.append(.liveText)
     }

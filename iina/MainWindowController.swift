@@ -296,7 +296,8 @@ class MainWindowController: PlayerWindowController {
     .useLiquidGlassOSD,
     .useLiquidGlassSidebar,
     .enableLiveText,
-    .trashAfterPlaybackFinished
+    .trashAfterPlaybackFinished,
+    .favorSameOrientation
   ]
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
@@ -378,6 +379,16 @@ class MainWindowController: PlayerWindowController {
           liveText.requestAnalysis()
         } else {
           liveText.clearAnalysis()
+        }
+      }
+    case PK.favorSameOrientation.rawValue:
+      if let newValue = change[.newKey] as? Bool {
+        let buttons = oscToolbarView.subviews as! [NSButton]
+        if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.sameOrientation.rawValue }) {
+          btn.image = newValue ? Preference.ToolBarButton.sameOrientation.alternateImage() : Preference.ToolBarButton.sameOrientation.image()
+        }
+        if newValue {
+          player.favorSameOrientationNext()
         }
       }
     case PK.trashAfterPlaybackFinished.rawValue:
@@ -975,6 +986,9 @@ class MainWindowController: PlayerWindowController {
       }
       if buttonType == .trashAfterFinish && trashAfterFinishEnabled {
         button.image = Preference.ToolBarButton.trashAfterFinish.alternateImage()
+      }
+      if buttonType == .sameOrientation && Preference.bool(for: .favorSameOrientation) {
+        button.image = Preference.ToolBarButton.sameOrientation.alternateImage()
       }
       button.action = #selector(self.toolBarButtonAction(_:))
       oscToolbarView.addView(button, in: .trailing)
@@ -3592,6 +3606,8 @@ class MainWindowController: PlayerWindowController {
       Preference.set(!Preference.bool(for: .enableLiveText), for: .enableLiveText)
     case .trashAfterFinish:
       Preference.set(!Preference.bool(for: .trashAfterPlaybackFinished), for: .trashAfterPlaybackFinished)
+    case .sameOrientation:
+      Preference.set(!Preference.bool(for: .favorSameOrientation), for: .favorSameOrientation)
     case .deleteAndNext:
       guard let window else {
         log("Delete and next: no window")

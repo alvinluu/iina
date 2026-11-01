@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import AVFoundation
 
 class PlayerCore: NSObject {
 
@@ -248,6 +249,8 @@ class PlayerCore: NSObject {
   var displayOSD: Bool = true
 
   var isInMiniPlayer = false
+  /// Scan for the next same-orientation entry (see `favorSameOrientationNext`).
+  var orientationScanTask: Task<Void, Never>?
   /// Set this to `true` if user changes "music mode" status manually. This disables `autoSwitchToMusicMode`
   /// functionality for the duration of this player even if the preference is `true`. But if they manually change the
   /// "music mode" status again, change this to `false` so that the preference is honored again.
@@ -2482,6 +2485,7 @@ class PlayerCore: NSObject {
 
   func playbackRestarted() {
     log("Playback restarted")
+    favorSameOrientationNext()
 
     // Important to synchronize the time as mpv may slightly alter the playback position during a
     // restart even while paused. See issue #5337.
@@ -3300,6 +3304,83 @@ extension PlayerCore: FFmpegControllerDelegate {
         }
       }
       events.emit(.thumbnailsReady)
+    }
+  }
+}
+
+// MARK: - Same-orientation playback
+
+/// Remembers whether each local file is portrait, so the playlist is only probed once per file.
+private final class OrientationCache {
+  static let shared = OrientationCache()
+  private let lock = NSLock()
+  private var portrait: [String: Bool] = [:]
+
+  func cached(_ path: String) -> Bool? {
+    lock.lock()
+    defer { lock.unlock() }
+    return portrait[path]
+  }
+
+  func store(_ path: String, _ isPortrait: Bool) {
+    lock.lock()
+    portrait[path] = isPortrait
+    lock.unlock()
+  }
+
+  /// `nil` when the orientation can't be determined (network streams, formats AVFoundation can't read).
+  func isPortrait(_ path: String) async -> Bool? {
+    if let known = cached(path) { return known }
+    guard !path.contains("://") else { return nil }
+    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+    guard let track = try? await asset.loadTracks(withMediaType: .video).first,
+          let (size, transform) = try? await track.load(.naturalSize, .preferredTransform) else { return nil }
+    let shown = size.applying(transform)
+    let result = abs(shown.height) > abs(shown.width)
+    store(path, result)
+    return result
+  }
+}
+
+extension PlayerCore {
+  /// With "same orientation" on, makes the entry after the current one the next playlist entry of
+  /// the same orientation (portrait/landscape) as the video now playing, by moving it up. Both the
+  /// next button and automatic advance then pick it; once no entry of that orientation is left the
+  /// playlist continues in its normal order.
+  func favorSameOrientationNext() {
+    orientationScanTask?.cancel()
+    guard Preference.bool(for: .favorSameOrientation), info.state.active, !isInMiniPlayer else { return }
+    let (width, height) = videoSizeForDisplay
+    guard width > 0, height > 0 else { return }
+    let currentIsPortrait = height > width
+    let pos = mpv.getInt(MPVProperty.playlistPos)
+    let count = mpv.getInt(MPVProperty.playlistCount)
+    // Nothing to reorder unless at least two entries follow.
+    guard pos >= 0, pos + 2 < count, let currentPath = mpv.getString(MPVProperty.playlistNFilename(pos)) else { return }
+    let candidates: [(index: Int, path: String)] = ((pos + 1)..<count).compactMap { index in
+      mpv.getString(MPVProperty.playlistNFilename(index)).map { (index, $0) }
+    }
+    orientationScanTask = Task.detached(priority: .utility) { [weak self] in
+      var found: (index: Int, path: String)?
+      for candidate in candidates {
+        if Task.isCancelled { return }
+        if await OrientationCache.shared.isPortrait(candidate.path) == currentIsPortrait {
+          found = candidate
+          break
+        }
+      }
+      guard let found, found.index != pos + 1, !Task.isCancelled else { return }
+      await MainActor.run {
+        // The playlist may have changed while scanning; only move if nothing did.
+        guard let self, !Task.isCancelled, self.info.state.active,
+              self.mpv.getInt(MPVProperty.playlistPos) == pos,
+              self.mpv.getString(MPVProperty.playlistNFilename(pos)) == currentPath,
+              self.mpv.getString(MPVProperty.playlistNFilename(found.index)) == found.path else { return }
+        self.log("Same orientation: moving playlist entry \(found.index) up to \(pos + 1)")
+        self.mpv.playlistMove(found.index, to: pos + 1)
+        self.getPlaylist()
+        self.postNotification(.iinaPlaylistChanged)
+      }
     }
   }
 }

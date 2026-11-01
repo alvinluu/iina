@@ -444,6 +444,7 @@
 "osc_toolbar.live_text" = "Toggle Live Text";
 "osc_toolbar.trash_after_finish" = "Toggle: move file to Trash after it finishes playing";
 "osc_toolbar.delete_and_next" = "Delete current file and play next";
+"osc_toolbar.same_orientation" = "Toggle: play videos with the same orientation (portrait/landscape) next";
 
 "osc_pos.floating" = "Floating";
 "osc_pos.top" = "Top";
