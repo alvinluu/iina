@@ -1804,6 +1804,8 @@ class MainWindowController: PlayerWindowController {
     fsState.finishAnimating()
     setWindowToolbar()
     fadeableViews.update()
+    // The restored frame can come back at the wrong scale; correct it once things settle.
+    scheduleWindowScaleSettle()
 
     if Preference.bool(for: .blackOutMonitor) {
       removeBlackWindow()
@@ -2905,6 +2907,45 @@ class MainWindowController: PlayerWindowController {
     handleVideoSizeChange(keepWindowSize: false)
   }
 
+  private var windowScaleSettleWorkItem: DispatchWorkItem?
+
+  /// mpv reports a new video's size several times while it loads, and some of those reports are
+  /// stale, so the window can end up at the wrong scale. Shortly after the last one, check the
+  /// window against the remembered scale and correct it.
+  private func scheduleWindowScaleSettle() {
+    windowScaleSettleWorkItem?.cancel()
+    guard (Preference.enum(for: .resizeWindowOption) as Preference.ResizeWindowOption) == .rememberLast else { return }
+    let item = DispatchWorkItem { [weak self] in self?.settleWindowScale() }
+    windowScaleSettleWorkItem = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: item)
+  }
+
+  private func settleWindowScale() {
+    guard let window, loaded, fsState == .windowed, pipStatus == .notInPIP,
+          !interactiveMode.isActive, !window.inLiveResize,
+          !Preference.unlockWindowAspectRatio else { return }
+    let (width, height) = player.videoSizeForDisplay
+    guard width > 0, height > 0 else { return }
+    // The remembered scale is window width / raw video width (see updateWindowParametersForMPV), so
+    // it is applied to the raw video size here too -- no "physical resolution" conversion, which
+    // would make the same scale mean different sizes on 1x and 2x displays.
+    let ratio = (Preference.enum(for: .resizeWindowOption) as Preference.ResizeWindowOption).ratio
+    let screenRect = window.selectDefaultScreen().visibleFrame
+    let target = NSSize(width: CGFloat(width), height: CGFloat(height)).multiply(CGFloat(ratio))
+      .satisfyMaxSizeWithSameAspectRatio(screenRect.size)
+      .satisfyMinSizeWithSameAspectRatio(AppData.mainWindowMinSize)
+    let frame = window.frame
+    guard abs(frame.width - target.width) > 2 else { return }
+    // Whatever the window has beyond the video itself (e.g. a docked titlebar) is kept.
+    let extraHeight = frame.height - videoViewContainer.frame.height
+    var newSize = target
+    newSize.height += extraHeight
+    let rect = frame.centeredResize(to: newSize).constrain(in: screenRect)
+    log("Correcting window scale: \(frame.size) -> \(rect.size) (remembered \(ratio)x)")
+    window.setFrame(rect, display: true)
+    updateWindowParametersForMPV(withFrame: rect, persistScale: false)
+  }
+
   /** Set window size when info available, or video size changed. */
   func handleVideoSizeChange(keepWindowSize: Bool) {
     guard loaded, let window else { return }
@@ -2976,6 +3017,16 @@ class MainWindowController: PlayerWindowController {
             log("Resized window to \(resizeRatio)x video size \(videoSize)")
           }
         }
+      } else if resizePreference == .rememberLast {
+        // mpv re-reports the video size shortly after a new file starts, once justStartedFile has
+        // already been cleared. Without applying the remembered scale here, that late event snapped
+        // the window to 100% every time before the next one put it back -- the "random" size jumps.
+        let resizeRatio = resizePreference.ratio
+        let sizeBefore = videoSize
+        videoSize = videoSize.multiply(CGFloat(resizeRatio))
+        if sizeBefore != videoSize {
+          log("Resized window to remembered \(resizeRatio)x video size \(videoSize) after video size change")
+        }
       }
       // check screen size
       videoSize = videoSize.satisfyMaxSizeWithSameAspectRatio(screenSize)
@@ -3038,6 +3089,8 @@ class MainWindowController: PlayerWindowController {
       // size); only keep it in sync for resizes that weren't driven by it.
       updateWindowParametersForMPV(withFrame: rect, persistScale: !player.info.justStartedFile)
     }
+
+    scheduleWindowScaleSettle()
 
     // On macOS 26 the floating OSC's glass content (toolbar buttons) can stop being composited
     // after a new video resizes the window even though every view's state is correct; re-asserting
@@ -3505,6 +3558,15 @@ class MainWindowController: PlayerWindowController {
 
   @objc func toolBarButtonAction(_ sender: NSButton) {
     guard let buttonType = Preference.ToolBarButton(rawValue: sender.tag) else { return }
+    log("Toolbar button clicked: \(buttonType) (translucent: \(isTranslucentMode), in window: \(sender.window === window))")
+    switch buttonType {
+    case .settings, .playlist, .plugins, .subTrack, .deleteAndNext:
+      // These show UI inside the main window (a sidebar, a menu, an alert sheet), which is faint and
+      // click-through while translucent -- so leave translucent mode first or they look dead.
+      if isTranslucentMode { setTranslucentMode(false) }
+    default:
+      break
+    }
     switch buttonType {
     case .fullScreen:
       toggleWindowFullScreen()
@@ -3531,7 +3593,10 @@ class MainWindowController: PlayerWindowController {
     case .trashAfterFinish:
       Preference.set(!Preference.bool(for: .trashAfterPlaybackFinished), for: .trashAfterPlaybackFinished)
     case .deleteAndNext:
-      guard let window else { return }
+      guard let window else {
+        log("Delete and next: no window")
+        return
+      }
       let alert = NSAlert()
       alert.messageText = NSLocalizedString("alert.delete_and_next.title", comment: "Delete Current File")
       alert.informativeText = NSLocalizedString("alert.delete_and_next.message", comment: "")
@@ -3549,6 +3614,7 @@ class MainWindowController: PlayerWindowController {
         let playlistCount = self.player.mpv.getInt(MPVProperty.playlistCount)
         let currentIndex = self.player.mpv.getInt(MPVProperty.playlistPos)
         let isLastItem = playlistCount > 1 && currentIndex == playlistCount - 1
+        self.log("Delete and next: response \(response.rawValue), playlist \(currentIndex + 1)/\(playlistCount), isLastItem \(isLastItem)")
         switch response {
         case .alertFirstButtonReturn:
           // Yes: mpv's playlist-remove auto-advances to the next item when the removed entry is
@@ -3943,6 +4009,9 @@ final class TranslucentControlPanel: NSPanel {
     let size = TranslucentControlPanel.miniSize
     super.init(contentRect: NSRect(origin: .zero, size: size),
                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    // The OSC's buttons have no explicit target (they rely on the responder chain reaching the
+    // window controller), so while they are hosted here the chain must end at the controller too.
+    nextResponder = controller
     isOpaque = false
     backgroundColor = .clear
     hasShadow = false
