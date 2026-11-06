@@ -374,6 +374,7 @@ class MainWindowController: PlayerWindowController {
         let buttons = oscToolbarView.subviews as! [NSButton]
         if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.liveText.rawValue }) {
           btn.image = newValue ? Preference.ToolBarButton.liveText.alternateImage() : Preference.ToolBarButton.liveText.image()
+          (btn as? OSCToggleToolbarButton)?.isOn = newValue
         }
         if newValue {
           liveText.requestAnalysis()
@@ -386,6 +387,7 @@ class MainWindowController: PlayerWindowController {
         let buttons = oscToolbarView.subviews as! [NSButton]
         if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.sameOrientation.rawValue }) {
           btn.image = newValue ? Preference.ToolBarButton.sameOrientation.alternateImage() : Preference.ToolBarButton.sameOrientation.image()
+          (btn as? OSCToggleToolbarButton)?.isOn = newValue
         }
         if newValue {
           player.favorSameOrientationNext()
@@ -396,6 +398,7 @@ class MainWindowController: PlayerWindowController {
         let buttons = oscToolbarView.subviews as! [NSButton]
         if let btn = buttons.first(where: { $0.tag == Preference.ToolBarButton.trashAfterFinish.rawValue }) {
           btn.image = newValue ? Preference.ToolBarButton.trashAfterFinish.alternateImage() : Preference.ToolBarButton.trashAfterFinish.image()
+          (btn as? OSCToggleToolbarButton)?.isOn = newValue
         }
       }
     default:
@@ -418,6 +421,9 @@ class MainWindowController: PlayerWindowController {
     fadeableWindowButtons = standardWindowButtons
     fadeableWindowButtons.forEach {
       fadeableViews.add($0) { [unowned self] in
+        if isTranslucentMode {
+          return isTranslucentPanelHovered ? .alwaysShown : .alwaysHidden
+        }
         if sidebars.leadingSidebar.status != .hidden {
           return .alwaysShown
         }
@@ -691,7 +697,10 @@ class MainWindowController: PlayerWindowController {
     registerWindowButtonsAsFadeable()
 
     fadeableViews.add(titleBarView) { [unowned self] in
-      if fsState == .windowed {
+      // While translucent, the title bar only appears while the pointer is over the translucent panel.
+      if isTranslucentMode {
+        isTranslucentPanelHovered ? .alwaysShown : .alwaysHidden
+      } else if fsState == .windowed {
         Preference.isDocked ? .alwaysShown : .auto
       } else { // full screen
         oscPosition == .top ? .auto : .alwaysHidden
@@ -979,7 +988,7 @@ class MainWindowController: PlayerWindowController {
     let liveTextEnabled = Preference.bool(for: .enableLiveText)
     let trashAfterFinishEnabled = Preference.bool(for: .trashAfterPlaybackFinished)
     for buttonType in effectiveButtons {
-      let button = NSButton()
+      let button = buttonType.isToggle ? OSCToggleToolbarButton() : NSButton()
       OSCToolbarButton.setStyle(of: button, buttonType: buttonType, reducedWidth: false)
       if buttonType == .liveText && liveTextEnabled {
         button.image = Preference.ToolBarButton.liveText.alternateImage()
@@ -990,6 +999,17 @@ class MainWindowController: PlayerWindowController {
       if buttonType == .sameOrientation && Preference.bool(for: .favorSameOrientation) {
         button.image = Preference.ToolBarButton.sameOrientation.alternateImage()
       }
+      if let toggle = button as? OSCToggleToolbarButton {
+        switch buttonType {
+        case .liveText: toggle.isOn = liveTextEnabled
+        case .trashAfterFinish: toggle.isOn = trashAfterFinishEnabled
+        case .sameOrientation: toggle.isOn = Preference.bool(for: .favorSameOrientation)
+        default: break
+        }
+      }
+      // Explicit target: while translucent, the OSC lives in a panel that never becomes key and Nina
+      // is usually inactive, so a nil-targeted action would find no responder and be dropped.
+      button.target = self
       button.action = #selector(self.toolBarButtonAction(_:))
       oscToolbarView.addView(button, in: .trailing)
     }
@@ -2441,6 +2461,7 @@ class MainWindowController: PlayerWindowController {
     // See comments in windowWillExitFullScreen for details.
     guard player.info.state.active else { return }
     videoView.videoLayer.inLiveResize = false
+    saveLastWindowFrame()
     updateWindowParametersForMPV()
     player.sendOSD(.windowScale(player.info.cachedWindowScale))
     liveText.requestAnalysis()
@@ -2464,6 +2485,7 @@ class MainWindowController: PlayerWindowController {
     guard loaded, let window else { return }
     correctDetachedFullScreenFrameIfNeeded()
     repositionTranslucentPanel()
+    saveLastWindowFrame()
     player.events.emit(.windowMoved, data: window.frame)
   }
 
@@ -2917,6 +2939,33 @@ class MainWindowController: PlayerWindowController {
     return lastScreen
   }
 
+  /// Frame for a window opening a file for the first time: centered on where the previous main window
+  /// was (its center, so a different video size stays put), kept fully inside `screen`'s visible
+  /// area. Centered on the screen when there is no usable saved position, e.g. none was saved or its
+  /// display is no longer connected.
+  private func initialWindowRect(size: NSSize, screen: NSScreen) -> NSRect {
+    let screenRect = screen.visibleFrame
+    var center = NSPoint(x: screenRect.midX, y: screenRect.midY)
+    if let saved = UserDefaults.standard.string(forKey: "MainWindowLastPosition") {
+      let last = NSRectFromString(saved)
+      let lastCenter = NSPoint(x: last.midX, y: last.midY)
+      if !last.isEmpty, screen.frame.contains(lastCenter) {
+        center = lastCenter
+      }
+    }
+    let rect = NSRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
+                      width: size.width, height: size.height).constrain(in: screenRect)
+    log("Placed window at the last position (or screen center): \(rect)")
+    return rect
+  }
+
+  /// Remembers the windowed frame as the place to open the next window, not only when the window
+  /// closes: quitting Nina with the window open doesn't reliably close it first.
+  private func saveLastWindowFrame() {
+    guard loaded, let window, !shouldApplyInitialWindowSize, fsState == .windowed, window.isVisible else { return }
+    UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: "MainWindowLastPosition")
+  }
+
   override func handleVideoSizeChange() {
     handleVideoSizeChange(keepWindowSize: false)
   }
@@ -3053,8 +3102,7 @@ class MainWindowController: PlayerWindowController {
           rect = wfg
           log("Adjusted window frame based on geometry option: \(rect)")
         } else {
-          rect = videoSize.centeredRect(in: screenRect)
-          log("Centered window in screen: \(rect)")
+          rect = initialWindowRect(size: videoSize, screen: screen)
         }
       } else if player.info.justStartedFile, resizePreference == .fitScreen {
         rect = screenRect.centeredResize(to: videoSize)
@@ -3064,8 +3112,7 @@ class MainWindowController: PlayerWindowController {
         log("Resized window preserving centering: \(rect)")
       }
     } else if shouldApplyInitialWindowSize {
-      rect = originalVideoSize.centeredRect(in: screenRect)
-      log("Centered original sized window in screen: \(rect)")
+      rect = initialWindowRect(size: originalVideoSize, screen: screen)
     } else {
       // user is navigating in playlist. remain same window area, anchored to nearest screen corner.
       rect = frame.areaPreservingResized(newWidth: CGFloat(width), height: CGFloat(height), screenFrame: screenRect)
@@ -3082,6 +3129,8 @@ class MainWindowController: PlayerWindowController {
 
     if player.info.justOpenedFile && !Preference.bool(for: .edgeToEdgeVideo) && Preference.bool(for: .dockedControlBarAndTitlebar) {
       rect.size.height += titleBarView.frame.height
+      // The extra height can push the top edge past the screen; the window must never end up off it.
+      rect = rect.constrain(in: screenRect)
     }
 
     if Preference.unlockWindowAspectRatio && !player.info.justOpenedFile {
@@ -3165,6 +3214,8 @@ class MainWindowController: PlayerWindowController {
   private(set) var isTranslucentMode = false
   private var isTranslucentPanelHovered = false
   private var translucentPanel: TranslucentControlPanel?
+  /// Keeps the panel's progress ring moving: `syncUITimer` stops while the OSC is hidden.
+  private var translucentProgressTimer: Timer?
 
   // KNOWN ISSUE (unfixed, believed to be an AppKit bug, not ours): after this window has entered
   // and exited full screen at least once (native `toggleFullScreen` or our own "legacy" full
@@ -3363,6 +3414,7 @@ class MainWindowController: PlayerWindowController {
   override func updatePlayTime(withDuration duration: Bool, andProgressBar: Bool) {
     super.updatePlayTime(withDuration: duration, andProgressBar: andProgressBar)
     syncPIPPlaybackState()
+    translucentPanel?.setProgress((player.info.videoPosition / player.info.videoDuration) ?? 0)
 
     if osdAnimationState == .shown, let osdLastMessage = self.osdLastMessage {
       let message: OSDMessage
@@ -3927,7 +3979,22 @@ extension MainWindowController {
       window.addChildWindow(panel, ordered: .above)
       repositionTranslucentPanel()
       panel.orderFront(nil)
+      player.syncUI(.time)
+      let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+        guard let self else {
+          timer.invalidate()
+          return
+        }
+        // Seeking while paused still updates the ring, through playbackRestarted.
+        if player.info.state != .paused {
+          player.syncUI(.time)
+        }
+      }
+      timer.tolerance = 0.2
+      translucentProgressTimer = timer
     } else {
+      translucentProgressTimer?.invalidate()
+      translucentProgressTimer = nil
       window.alphaValue = 1
       window.ignoresMouseEvents = false
       if let panel = translucentPanel {
@@ -3946,6 +4013,11 @@ extension MainWindowController {
   func translucentPanelHoverChanged(_ hovered: Bool) {
     guard isTranslucentMode, hovered != isTranslucentPanelHovered else { return }
     isTranslucentPanelHovered = hovered
+    if hovered {
+      // The title bar (shown only during this hover) may have been left faded out by auto-hide.
+      titleBarView?.alphaValue = 1
+      fadeableWindowButtons.forEach { $0.alphaValue = 1 }
+    }
     if oscPosition == .floating, let panel = translucentPanel {
       // Expand the panel into the full floating OSC (the mini strip stays put in its empty top
       // center); collapse back to the mini panel when the pointer leaves.
@@ -3971,8 +4043,10 @@ extension MainWindowController {
   func repositionTranslucentPanel() {
     guard isTranslucentMode, let window, let panel = translucentPanel else { return }
     let size = panel.frame.size
+    // Just below the title bar, so the title bar shown while hovering the panel isn't covered by it.
+    let titleBarHeight = titleBarView?.frame.height ?? 0
     var origin = NSPoint(x: window.frame.midX - size.width / 2,
-                         y: window.frame.maxY - size.height - 7)
+                         y: window.frame.maxY - titleBarHeight - size.height - 4 + (panel.isExpanded ? TranslucentControlPanel.oscRise : 0))
     // Never let the panel leave the screen: it's the only way to turn click-through mode off, so
     // if the window is dragged partly off-screen, is narrower than the panel, or its screen goes
     // away, keep the panel inside the visible area of the screen the window mostly occupies.
@@ -3992,14 +4066,20 @@ extension MainWindowController {
 final class TranslucentControlPanel: NSPanel {
   private let slider: NSSlider
   private let toggle: NSButton
+  private let progressRing = TranslucentProgressRing()
   private var miniContent: TranslucentPanelBackground!
   private let expandedContent = TranslucentHoverContainer()
   private weak var embeddedOSC: OSCFloatingView?
   private(set) var isExpanded = false
 
-  /// Collapsed: just the off switch. Expanded: off switch plus the opacity slider, to its right.
-  private static let miniSize = NSSize(width: 40, height: 26)
-  private static let stripSize = NSSize(width: 118, height: 26)
+  /// Collapsed: a circle holding the off switch and progress ring. Expanded: a capsule that adds the
+  /// opacity slider to the circle's right.
+  private static let miniSize = NSSize(width: 28, height: 28)
+  private static let stripSize = NSSize(width: 110, height: 28)
+  /// When expanded, the OSC sits this much higher than the strip, so the strip fits inside the OSC
+  /// instead of covering its top border line. The panel is moved up by the same amount so the strip
+  /// (and the off switch in it) stays exactly where it was.
+  static let oscRise: CGFloat = 2
 
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
@@ -4054,20 +4134,23 @@ final class TranslucentControlPanel: NSPanel {
     background.blendingMode = .behindWindow
     background.state = .active
     background.wantsLayer = true
-    background.layer?.cornerRadius = 8
+    background.layer?.cornerRadius = size.height / 2
     background.layer?.masksToBounds = true
 
-    // Fixed 10pt inset: centers the 20pt off switch in the 40pt collapsed panel, and keeps it in
-    // the same place when the strip widens to show the slider to its right.
-    [toggle, slider].forEach {
+    // The ring fills the collapsed circle with the off switch centered inside it, and both stay in
+    // the same place when the strip widens to show the slider to their right.
+    [progressRing, toggle, slider].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
       background.addSubview($0)
       $0.centerYAnchor.constraint(equalTo: background.centerYAnchor).isActive = true
     }
-    toggle.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 10).isActive = true
+    progressRing.leadingAnchor.constraint(equalTo: background.leadingAnchor).isActive = true
+    progressRing.widthAnchor.constraint(equalToConstant: size.width).isActive = true
+    progressRing.heightAnchor.constraint(equalToConstant: size.height).isActive = true
+    toggle.centerXAnchor.constraint(equalTo: progressRing.centerXAnchor).isActive = true
     toggle.widthAnchor.constraint(equalToConstant: 20).isActive = true
     toggle.heightAnchor.constraint(equalToConstant: 20).isActive = true
-    slider.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 8).isActive = true
+    slider.leadingAnchor.constraint(equalTo: progressRing.trailingAnchor, constant: 2).isActive = true
     slider.widthAnchor.constraint(equalToConstant: 70).isActive = true
     slider.isHidden = true
     contentView = background
@@ -4088,12 +4171,12 @@ final class TranslucentControlPanel: NSPanel {
     expandedContent.layoutSubtreeIfNeeded()
     let miniSize = TranslucentControlPanel.miniSize
     let stripSize = TranslucentControlPanel.stripSize
-    let size = NSSize(width: 460, height: max(osc.fittingSize.height, stripSize.height))
+    let size = NSSize(width: 460, height: max(osc.fittingSize.height, stripSize.height + Self.oscRise))
     setContentSize(size)
     miniContent.removeFromSuperview()
     miniContent.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
     // Left edge where the collapsed panel's was, so the off switch doesn't move.
-    miniContent.frame = NSRect(x: (size.width - miniSize.width) / 2, y: size.height - stripSize.height,
+    miniContent.frame = NSRect(x: (size.width - miniSize.width) / 2, y: size.height - stripSize.height - Self.oscRise,
                                width: stripSize.width, height: stripSize.height)
     expandedContent.addSubview(miniContent)
   }
@@ -4113,6 +4196,51 @@ final class TranslucentControlPanel: NSPanel {
   func sync(opacity: Double, isOn: Bool) {
     slider.doubleValue = opacity
     slider.isEnabled = isOn
+  }
+
+  /// - Parameter progress: How much of the video has played, from 0 to 1.
+  func setProgress(_ progress: Double) {
+    // A duration of 0 (some streams) divides out to infinity or NaN.
+    progressRing.progress = progress.isFinite ? min(1, max(0, progress)) : 0
+  }
+}
+
+/// Ring around the translucent panel's off switch showing how much of the video has played, filling
+/// clockwise from 12 o'clock. Display only: clicks and drags pass through to the views below it.
+final class TranslucentProgressRing: NSView {
+  private static let lineWidth: CGFloat = 2.5
+
+  var progress: Double = 0 {
+    didSet {
+      // The ring is small, so skip redraws for changes too small to see.
+      guard abs(progress - drawnProgress) >= 0.001 else { return }
+      drawnProgress = progress
+      needsDisplay = true
+    }
+  }
+  private var drawnProgress: Double = 0
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let lineWidth = TranslucentProgressRing.lineWidth
+    let center = NSPoint(x: bounds.midX, y: bounds.midY)
+    let radius = min(bounds.width, bounds.height) / 2 - lineWidth / 2 - 0.5
+
+    let track = NSBezierPath()
+    track.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
+    track.lineWidth = lineWidth
+    NSColor.labelColor.withAlphaComponent(0.25).setStroke()
+    track.stroke()
+
+    guard drawnProgress > 0 else { return }
+    let played = NSBezierPath()
+    played.appendArc(withCenter: center, radius: radius, startAngle: 90,
+                     endAngle: 90 - 360 * CGFloat(drawnProgress), clockwise: true)
+    played.lineWidth = lineWidth
+    played.lineCapStyle = .round
+    OSCToggleToolbarButton.onColor.setStroke()
+    played.stroke()
   }
 }
 

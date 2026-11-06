@@ -1184,7 +1184,8 @@ class MPVController: NSObject {
       }
 
     case MPV_EVENT_END_FILE:
-      let reason = event.pointee.data.load(as: mpv_end_file_reason.self)
+      let endFile = event.pointee.data.load(as: mpv_event_end_file.self)
+      let reason = endFile.reason
       let dueToStopCommand = reason == MPV_END_FILE_REASON_STOP
       // When the IINA "Pause" setting is enabled under "When media is opened" IINA must tell mpv to
       // pause playback ASAP. Events are delivered asynchronously. If the IINA
@@ -1202,7 +1203,8 @@ class MPVController: NSObject {
         log("Pausing playback because \"pause when media is opened\" is enabled")
       }
       if reason == MPV_END_FILE_REASON_EOF {
-        DispatchQueue.main.async { self.player.trashCurrentFileIfEnabledAfterPlayback() }
+        let entryID = Int(endFile.playlist_entry_id)
+        DispatchQueue.main.async { self.player.trashFinishedFileIfEnabled(playlistEntryID: entryID) }
       }
       DispatchQueue.main.async { self.player.fileEnded(dueToStopCommand) }
 

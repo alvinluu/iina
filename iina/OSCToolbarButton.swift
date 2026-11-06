@@ -48,3 +48,50 @@ class OSCToolbarButton {
     return dragItem
   }
 }
+
+/// A toolbar button for an on/off setting. Draws an underline below the icon: accent-colored when on, faint when off.
+class OSCToggleToolbarButton: NSButton {
+  var isOn = false {
+    didSet {
+      guard isOn != oldValue else { return }
+      needsDisplay = true
+    }
+  }
+
+  private static let underlineWidth: CGFloat = 14
+  private static let underlineHeight: CGFloat = 2.5
+  /// Extra room below the 24pt toolbar row for the underline, so it sits clear of the glyph.
+  private static let underlineSpace: CGFloat = 3
+  /// A saturated bright blue that stands out on the dark OSC.
+  static let onColor = NSColor(srgbRed: 0.16, green: 0.6, blue: 1, alpha: 1)
+  private var loggedFrame: NSRect?
+
+  // Auto Layout places a button by its alignment rect. Keep that rect at the 24pt toolbar frame like the
+  // other buttons (with no image-dependent insets), and extend the real frame below it for the underline.
+  override var alignmentRectInsets: NSEdgeInsets {
+    NSEdgeInsets(top: 0, left: 0, bottom: OSCToggleToolbarButton.underlineSpace, right: 0)
+  }
+
+  override func layout() {
+    super.layout()
+    if loggedFrame != frame {
+      loggedFrame = frame
+      Logger.log("OSC toggle \(Preference.ToolBarButton(rawValue: tag)?.description ?? "\(tag)") frame: \(frame)")
+    }
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let space = OSCToggleToolbarButton.underlineSpace
+    let w = OSCToggleToolbarButton.underlineWidth, h = OSCToggleToolbarButton.underlineHeight
+    // Draw the glyph in the 24pt area so it lines up with the other toolbar buttons.
+    var glyphRect = bounds
+    glyphRect.size.height -= space
+    if !isFlipped { glyphRect.origin.y += space }
+    cell?.draw(withFrame: glyphRect, in: self)
+    // The underline straddles the bottom of the glyph area, about 3.5pt below the glyph.
+    let y = isFlipped ? glyphRect.maxY - 1 : glyphRect.minY + 1 - h
+    let rect = NSRect(x: bounds.midX - w / 2, y: y, width: w, height: h)
+    (isOn ? OSCToggleToolbarButton.onColor : NSColor.labelColor.withAlphaComponent(0.25)).setFill()
+    NSBezierPath(roundedRect: rect, xRadius: h / 2, yRadius: h / 2).fill()
+  }
+}

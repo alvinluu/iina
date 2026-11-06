@@ -1596,9 +1596,14 @@ class PlayerCore: NSObject {
   @discardableResult
   func trashCurrentFile() -> Bool {
     guard let url = info.currentURL, !info.isNetworkResource else { return false }
+    return trashFile(at: url, playlistIndex: mpv.getInt(MPVProperty.playlistPos))
+  }
+
+  /// Removes the given playlist entry and moves its file to the Trash.
+  @discardableResult
+  private func trashFile(at url: URL, playlistIndex: Int) -> Bool {
     do {
-      let index = mpv.getInt(MPVProperty.playlistPos)
-      playlistRemove(index)
+      playlistRemove(playlistIndex)
       try FileManager.default.trashItem(at: url, resultingItemURL: nil)
       sendOSD(.custom(String(format: NSLocalizedString("osd.moved_to_trash", comment: ""), url.lastPathComponent)))
       return true
@@ -1609,9 +1614,19 @@ class PlayerCore: NSObject {
   }
 
   /// Called when mpv reports a file reached its natural end-of-file (not a user-initiated stop).
-  func trashCurrentFileIfEnabledAfterPlayback() {
+  /// By now mpv has usually moved on to the next entry, so `playlist-pos` and `info.currentURL` can't
+  /// be trusted to name the finished file. Find it by the playlist entry ID from mpv's event instead.
+  func trashFinishedFileIfEnabled(playlistEntryID: Int) {
     guard Preference.bool(for: .trashAfterPlaybackFinished) else { return }
-    trashCurrentFile()
+    let count = mpv.getInt(MPVProperty.playlistCount)
+    guard let index = (0..<count).first(where: { mpv.getInt(MPVProperty.playlistNId($0)) == playlistEntryID }),
+          let path = mpv.getString(MPVProperty.playlistNFilename(index)) else {
+      log("Trash after finish: no playlist entry with ID \(playlistEntryID)", level: .warning)
+      return
+    }
+    guard !path.contains("://") else { return }
+    log("Trash after finish: removing playlist entry \(index)")
+    trashFile(at: URL(fileURLWithPath: path), playlistIndex: index)
   }
 
   func playlistRemove(_ indexSet: IndexSet) {

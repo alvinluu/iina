@@ -974,6 +974,14 @@ struct Preference {
       return NSLocalizedString("osc_toolbar.\(key)", comment: key)
     }
 
+    /// Buttons that switch a setting on or off, shown with an on/off underline in the OSC.
+    var isToggle: Bool {
+      switch self {
+      case .liveText, .trashAfterFinish, .sameOrientation: true
+      default: false
+      }
+    }
+
     // Width will be identical
     static let frameSize: CGFloat = 24
     // Reduced size for floating OSC with five buttons
